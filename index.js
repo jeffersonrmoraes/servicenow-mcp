@@ -47,7 +47,7 @@ async function snPatch(path, body) {
 }
 
 const server = new Server(
-  { name: "servicenow-dev-agent", version: "1.1.0" },
+  { name: "servicenow-dev-agent", version: "1.2.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -107,12 +107,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          sys_id:    { type: "string", description: "sys_id da Business Rule" },
+          sys_id:    { type: "string" },
           name:      { type: "string" },
           script:    { type: "string" },
           condition: { type: "string" },
           when:      { type: "string", enum: ["before", "after", "async", "display"] },
-          action:    { type: "string", description: "insert, update, delete, query (separados por vírgula)" },
+          action:    { type: "string" },
           active:    { type: "boolean" },
           order:     { type: "number" },
         },
@@ -138,12 +138,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "sn_update_script_include",
-      description: "Atualiza o script, descrição ou status de um Script Include existente.",
+      description: "Atualiza script, descrição ou status de um Script Include existente.",
       inputSchema: {
         type: "object",
         properties: {
-          sys_id:          { type: "string", description: "sys_id do Script Include" },
-          script:          { type: "string", description: "Novo conteúdo do script" },
+          sys_id:          { type: "string" },
+          script:          { type: "string" },
           description:     { type: "string" },
           active:          { type: "boolean" },
           client_callable: { type: "boolean" },
@@ -171,14 +171,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "sn_update_client_script",
-      description: "Atualiza o script, tipo ou status de um Client Script existente.",
+      description: "Atualiza script, tipo ou status de um Client Script existente.",
       inputSchema: {
         type: "object",
         properties: {
-          sys_id: { type: "string", description: "sys_id do Client Script" },
-          script: { type: "string", description: "Novo conteúdo do script" },
+          sys_id: { type: "string" },
+          script: { type: "string" },
           type:   { type: "string", enum: ["onLoad", "onChange", "onSubmit", "onCellEdit"] },
-          field:  { type: "string", description: "Campo alvo (para onChange)" },
+          field:  { type: "string" },
           active: { type: "boolean" },
         },
         required: ["sys_id"],
@@ -207,7 +207,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          sys_id:    { type: "string", description: "sys_id da UI Policy" },
+          sys_id:    { type: "string" },
           condition: { type: "string" },
           script:    { type: "string" },
           active:    { type: "boolean" },
@@ -233,16 +233,187 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "sn_update_scheduled_job",
-      description: "Atualiza o script ou status de um Scheduled Job existente.",
+      description: "Atualiza script ou status de um Scheduled Job existente.",
       inputSchema: {
         type: "object",
         properties: {
-          sys_id:   { type: "string", description: "sys_id do Scheduled Job" },
+          sys_id:   { type: "string" },
           script:   { type: "string" },
           run_type: { type: "string", enum: ["daily", "weekly", "monthly", "periodically", "once"] },
           active:   { type: "boolean" },
         },
         required: ["sys_id"],
+      },
+    },
+
+    // ── SERVICE CATALOG ────────────────────────
+    {
+      name: "sn_create_catalog_item",
+      description: "Cria um item de catálogo no Service Catalog do ServiceNow.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name:               { type: "string", description: "Nome do item" },
+          short_description:  { type: "string", description: "Descrição curta exibida no catálogo" },
+          description:        { type: "string", description: "Descrição completa (HTML suportado)" },
+          category:           { type: "string", description: "sys_id da categoria" },
+          workflow:           { type: "string", description: "sys_id do workflow a ser disparado (opcional)" },
+          active:             { type: "boolean" },
+          order:              { type: "number", description: "Ordem de exibição no catálogo" },
+          fulfillment_group:  { type: "string", description: "sys_id do grupo de fulfillment (opcional)" },
+          delivery_time:      { type: "string", description: "Tempo estimado de entrega (ex: 1 4 0)" },
+        },
+        required: ["name", "short_description"],
+      },
+    },
+    {
+      name: "sn_update_catalog_item",
+      description: "Atualiza um item de catálogo existente.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sys_id:             { type: "string", description: "sys_id do item de catálogo" },
+          name:               { type: "string" },
+          short_description:  { type: "string" },
+          description:        { type: "string" },
+          active:             { type: "boolean" },
+          workflow:           { type: "string" },
+          order:              { type: "number" },
+          fulfillment_group:  { type: "string" },
+        },
+        required: ["sys_id"],
+      },
+    },
+    {
+      name: "sn_create_catalog_variable",
+      description: "Cria uma variável (campo) em um item de catálogo.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          catalog_item_sys_id: { type: "string", description: "sys_id do item de catálogo pai" },
+          name:                { type: "string", description: "Nome interno da variável (ex: u_justificativa)" },
+          question_text:       { type: "string", description: "Texto da pergunta exibido ao usuário" },
+          type:                { type: "string", description: "Tipo: 1=Text, 2=Select, 3=MultiLine, 4=Reference, 5=CheckBox, 6=Date, 14=Label, 16=Container Start, 17=Container End, 18=Container Split" },
+          mandatory:           { type: "boolean" },
+          active:              { type: "boolean" },
+          order:               { type: "number" },
+          default_value:       { type: "string" },
+          help_text:           { type: "string" },
+          reference_table:     { type: "string", description: "Tabela de referência (somente para type=4)" },
+        },
+        required: ["catalog_item_sys_id", "name", "question_text", "type"],
+      },
+    },
+    {
+      name: "sn_update_catalog_variable",
+      description: "Atualiza uma variável existente de um item de catálogo.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sys_id:        { type: "string", description: "sys_id da variável" },
+          question_text: { type: "string" },
+          mandatory:     { type: "boolean" },
+          active:        { type: "boolean" },
+          order:         { type: "number" },
+          default_value: { type: "string" },
+          help_text:     { type: "string" },
+        },
+        required: ["sys_id"],
+      },
+    },
+    {
+      name: "sn_create_catalog_category",
+      description: "Cria uma categoria no Service Catalog.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          title:       { type: "string" },
+          description: { type: "string" },
+          catalog:     { type: "string", description: "sys_id do catálogo pai (opcional, usa o padrão)" },
+          active:      { type: "boolean" },
+          order:       { type: "number" },
+        },
+        required: ["title"],
+      },
+    },
+
+    // ── FLOW DESIGNER ──────────────────────────
+    {
+      name: "sn_get_flow",
+      description: "Busca um Flow pelo nome ou sys_id.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name:   { type: "string", description: "Nome do flow (busca parcial)" },
+          sys_id: { type: "string", description: "sys_id exato do flow" },
+        },
+      },
+    },
+    {
+      name: "sn_activate_flow",
+      description: "Ativa ou desativa um Flow no Flow Designer.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sys_id: { type: "string", description: "sys_id do flow" },
+          active: { type: "boolean", description: "true para ativar, false para desativar" },
+        },
+        required: ["sys_id", "active"],
+      },
+    },
+    {
+      name: "sn_trigger_flow",
+      description: "Dispara um Flow manualmente via API (flows com trigger Record-based ou API).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          flow_sys_id:  { type: "string", description: "sys_id do flow" },
+          inputs:       { type: "object", description: "Inputs do flow (chave/valor conforme definido no flow)" },
+          table:        { type: "string", description: "Tabela do registro alvo (para flows com trigger de record)" },
+          record_sys_id:{ type: "string", description: "sys_id do registro alvo (para flows com trigger de record)" },
+        },
+        required: ["flow_sys_id"],
+      },
+    },
+    {
+      name: "sn_list_flow_executions",
+      description: "Lista execuções recentes de um Flow para monitoramento e debug.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          flow_sys_id: { type: "string", description: "sys_id do flow" },
+          limit:       { type: "number", description: "Número de execuções a retornar (padrão: 10)" },
+          status:      { type: "string", enum: ["complete", "error", "running", "cancelled"], description: "Filtrar por status" },
+        },
+        required: ["flow_sys_id"],
+      },
+    },
+    {
+      name: "sn_create_subflow",
+      description: "Cria um Subflow reutilizável no Flow Designer.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name:        { type: "string" },
+          description: { type: "string" },
+          category:    { type: "string", description: "Categoria do subflow (opcional)" },
+          active:      { type: "boolean" },
+        },
+        required: ["name"],
+      },
+    },
+    {
+      name: "sn_create_flow_action",
+      description: "Cria uma Action customizada reutilizável no Flow Designer.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name:        { type: "string" },
+          description: { type: "string" },
+          script:      { type: "string", description: "Script da action (JavaScript)" },
+          active:      { type: "boolean" },
+        },
+        required: ["name", "script"],
       },
     },
 
@@ -504,6 +675,159 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
+      // ── SERVICE CATALOG ─────────────────────
+      case "sn_create_catalog_item": {
+        const data = await snPost("/api/now/table/sc_cat_item", {
+          name:              args.name,
+          short_description: args.short_description,
+          description:       args.description || "",
+          category:          args.category || "",
+          workflow:          args.workflow || "",
+          active:            args.active !== false,
+          order:             args.order || 100,
+          group:             args.fulfillment_group || "",
+          delivery_time:     args.delivery_time || "",
+        });
+        result = { sys_id: data.result.sys_id, name: data.result.name };
+        break;
+      }
+
+      case "sn_update_catalog_item": {
+        const payload = {};
+        if (args.name              !== undefined) payload.name              = args.name;
+        if (args.short_description !== undefined) payload.short_description = args.short_description;
+        if (args.description       !== undefined) payload.description       = args.description;
+        if (args.active            !== undefined) payload.active            = args.active;
+        if (args.workflow          !== undefined) payload.workflow          = args.workflow;
+        if (args.order             !== undefined) payload.order             = args.order;
+        if (args.fulfillment_group !== undefined) payload.group             = args.fulfillment_group;
+        const data = await snPatch(`/api/now/table/sc_cat_item/${args.sys_id}`, payload);
+        result = { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
+        break;
+      }
+
+      case "sn_create_catalog_variable": {
+        const data = await snPost("/api/now/table/item_option_new", {
+          cat_item:      args.catalog_item_sys_id,
+          name:          args.name,
+          question_text: args.question_text,
+          type:          args.type,
+          mandatory:     args.mandatory || false,
+          active:        args.active !== false,
+          order:         args.order || 100,
+          default_value: args.default_value || "",
+          help_text:     args.help_text || "",
+          reference:     args.reference_table || "",
+        });
+        result = { sys_id: data.result.sys_id, name: data.result.name };
+        break;
+      }
+
+      case "sn_update_catalog_variable": {
+        const payload = {};
+        if (args.question_text !== undefined) payload.question_text = args.question_text;
+        if (args.mandatory     !== undefined) payload.mandatory     = args.mandatory;
+        if (args.active        !== undefined) payload.active        = args.active;
+        if (args.order         !== undefined) payload.order         = args.order;
+        if (args.default_value !== undefined) payload.default_value = args.default_value;
+        if (args.help_text     !== undefined) payload.help_text     = args.help_text;
+        const data = await snPatch(`/api/now/table/item_option_new/${args.sys_id}`, payload);
+        result = { sys_id: data.result.sys_id, updated: Object.keys(payload) };
+        break;
+      }
+
+      case "sn_create_catalog_category": {
+        const data = await snPost("/api/now/table/sc_category", {
+          title:       args.title,
+          description: args.description || "",
+          sc_catalog:  args.catalog || "",
+          active:      args.active !== false,
+          order:       args.order || 100,
+        });
+        result = { sys_id: data.result.sys_id, title: data.result.title };
+        break;
+      }
+
+      // ── FLOW DESIGNER ───────────────────────
+      case "sn_get_flow": {
+        const params = { sysparm_limit: 10 };
+        if (args.sys_id) {
+          const data = await snGet(`/api/now/table/sys_hub_flow/${args.sys_id}`);
+          result = data.result;
+        } else {
+          params.sysparm_query = `nameLIKE${args.name || ""}`;
+          params.sysparm_fields = "sys_id,name,description,active,sys_scope,trigger_type";
+          const data = await snGet("/api/now/table/sys_hub_flow", params);
+          result = data.result;
+        }
+        break;
+      }
+
+      case "sn_activate_flow": {
+        const data = await snPatch(`/api/now/table/sys_hub_flow/${args.sys_id}`, {
+          active: args.active,
+        });
+        result = {
+          sys_id: data.result.sys_id,
+          name:   data.result.name,
+          active: data.result.active,
+        };
+        break;
+      }
+
+      case "sn_trigger_flow": {
+        // Usa a Flow API para disparar o flow
+        const body = {
+          inputs: args.inputs || {},
+        };
+        if (args.table && args.record_sys_id) {
+          body.inputs.table = args.table;
+          body.inputs.sys_id = args.record_sys_id;
+        }
+        const data = await snPost(
+          `/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`,
+          body
+        );
+        result = data.result || data;
+        break;
+      }
+
+      case "sn_list_flow_executions": {
+        const params = {
+          sysparm_limit: args.limit || 10,
+          sysparm_query: `flow=${args.flow_sys_id}${args.status ? `^status=${args.status}` : ""}`,
+          sysparm_fields: "sys_id,flow,status,start_time,end_time,error",
+          sysparm_orderby: "sys_created_on",
+          sysparm_orderby_direction: "desc",
+        };
+        const data = await snGet("/api/now/table/sys_flow_context", params);
+        result = data.result;
+        break;
+      }
+
+      case "sn_create_subflow": {
+        const data = await snPost("/api/now/table/sys_hub_flow", {
+          name:        args.name,
+          description: args.description || "",
+          active:      args.active !== false,
+          flow_type:   "subflow",
+          category:    args.category || "",
+        });
+        result = { sys_id: data.result.sys_id, name: data.result.name };
+        break;
+      }
+
+      case "sn_create_flow_action": {
+        const data = await snPost("/api/now/table/sys_hub_action_type_definition", {
+          name:        args.name,
+          description: args.description || "",
+          script:      args.script,
+          active:      args.active !== false,
+        });
+        result = { sys_id: data.result.sys_id, name: data.result.name };
+        break;
+      }
+
       // ── CAMPOS / TABELAS ────────────────────
       case "sn_create_field": {
         const data = await snPost("/api/now/table/sys_dictionary", {
@@ -590,4 +914,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error("ServiceNow MCP Server v1.1.0 rodando...");
+console.error("ServiceNow MCP Server v1.2.0 rodando...");
