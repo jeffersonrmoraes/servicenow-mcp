@@ -46,8 +46,17 @@ async function snPatch(path, body) {
   return res.json();
 }
 
+async function snDelete(path) {
+  const res = await fetch(`${SN_INSTANCE}${path}`, {
+    method: "DELETE",
+    headers: HEADERS,
+  });
+  if (!res.ok) throw new Error(`DELETE ${path} → ${res.status}: ${await res.text()}`);
+  return { deleted: true };
+}
+
 const server = new Server(
-  { name: "servicenow-dev-agent", version: "1.2.0" },
+  { name: "servicenow-dev-agent", version: "1.3.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -253,15 +262,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          name:               { type: "string", description: "Nome do item" },
-          short_description:  { type: "string", description: "Descrição curta exibida no catálogo" },
-          description:        { type: "string", description: "Descrição completa (HTML suportado)" },
-          category:           { type: "string", description: "sys_id da categoria" },
-          workflow:           { type: "string", description: "sys_id do workflow a ser disparado (opcional)" },
-          active:             { type: "boolean" },
-          order:              { type: "number", description: "Ordem de exibição no catálogo" },
-          fulfillment_group:  { type: "string", description: "sys_id do grupo de fulfillment (opcional)" },
-          delivery_time:      { type: "string", description: "Tempo estimado de entrega (ex: 1 4 0)" },
+          name:              { type: "string" },
+          short_description: { type: "string" },
+          description:       { type: "string" },
+          category:          { type: "string" },
+          workflow:          { type: "string" },
+          active:            { type: "boolean" },
+          order:             { type: "number" },
+          fulfillment_group: { type: "string" },
+          delivery_time:     { type: "string" },
         },
         required: ["name", "short_description"],
       },
@@ -272,14 +281,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          sys_id:             { type: "string", description: "sys_id do item de catálogo" },
-          name:               { type: "string" },
-          short_description:  { type: "string" },
-          description:        { type: "string" },
-          active:             { type: "boolean" },
-          workflow:           { type: "string" },
-          order:              { type: "number" },
-          fulfillment_group:  { type: "string" },
+          sys_id:            { type: "string" },
+          name:              { type: "string" },
+          short_description: { type: "string" },
+          description:       { type: "string" },
+          active:            { type: "boolean" },
+          workflow:          { type: "string" },
+          order:             { type: "number" },
+          fulfillment_group: { type: "string" },
         },
         required: ["sys_id"],
       },
@@ -290,16 +299,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          catalog_item_sys_id: { type: "string", description: "sys_id do item de catálogo pai" },
-          name:                { type: "string", description: "Nome interno da variável (ex: u_justificativa)" },
-          question_text:       { type: "string", description: "Texto da pergunta exibido ao usuário" },
-          type:                { type: "string", description: "Tipo: 1=Text, 2=Select, 3=MultiLine, 4=Reference, 5=CheckBox, 6=Date, 14=Label, 16=Container Start, 17=Container End, 18=Container Split" },
+          catalog_item_sys_id: { type: "string" },
+          name:                { type: "string" },
+          question_text:       { type: "string" },
+          type:                { type: "string", description: "1=Text, 2=Select, 3=MultiLine, 4=Reference, 5=CheckBox, 6=Date" },
           mandatory:           { type: "boolean" },
           active:              { type: "boolean" },
           order:               { type: "number" },
           default_value:       { type: "string" },
           help_text:           { type: "string" },
-          reference_table:     { type: "string", description: "Tabela de referência (somente para type=4)" },
+          reference_table:     { type: "string" },
         },
         required: ["catalog_item_sys_id", "name", "question_text", "type"],
       },
@@ -310,7 +319,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          sys_id:        { type: "string", description: "sys_id da variável" },
+          sys_id:        { type: "string" },
           question_text: { type: "string" },
           mandatory:     { type: "boolean" },
           active:        { type: "boolean" },
@@ -329,7 +338,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           title:       { type: "string" },
           description: { type: "string" },
-          catalog:     { type: "string", description: "sys_id do catálogo pai (opcional, usa o padrão)" },
+          catalog:     { type: "string" },
           active:      { type: "boolean" },
           order:       { type: "number" },
         },
@@ -344,8 +353,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          name:   { type: "string", description: "Nome do flow (busca parcial)" },
-          sys_id: { type: "string", description: "sys_id exato do flow" },
+          name:   { type: "string" },
+          sys_id: { type: "string" },
         },
       },
     },
@@ -355,22 +364,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          sys_id: { type: "string", description: "sys_id do flow" },
-          active: { type: "boolean", description: "true para ativar, false para desativar" },
+          sys_id: { type: "string" },
+          active: { type: "boolean" },
         },
         required: ["sys_id", "active"],
       },
     },
     {
       name: "sn_trigger_flow",
-      description: "Dispara um Flow manualmente via API (flows com trigger Record-based ou API).",
+      description: "Dispara um Flow manualmente via API.",
       inputSchema: {
         type: "object",
         properties: {
-          flow_sys_id:  { type: "string", description: "sys_id do flow" },
-          inputs:       { type: "object", description: "Inputs do flow (chave/valor conforme definido no flow)" },
-          table:        { type: "string", description: "Tabela do registro alvo (para flows com trigger de record)" },
-          record_sys_id:{ type: "string", description: "sys_id do registro alvo (para flows com trigger de record)" },
+          flow_sys_id:   { type: "string" },
+          inputs:        { type: "object" },
+          table:         { type: "string" },
+          record_sys_id: { type: "string" },
         },
         required: ["flow_sys_id"],
       },
@@ -381,9 +390,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          flow_sys_id: { type: "string", description: "sys_id do flow" },
-          limit:       { type: "number", description: "Número de execuções a retornar (padrão: 10)" },
-          status:      { type: "string", enum: ["complete", "error", "running", "cancelled"], description: "Filtrar por status" },
+          flow_sys_id: { type: "string" },
+          limit:       { type: "number" },
+          status:      { type: "string", enum: ["complete", "error", "running", "cancelled"] },
         },
         required: ["flow_sys_id"],
       },
@@ -396,7 +405,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           name:        { type: "string" },
           description: { type: "string" },
-          category:    { type: "string", description: "Categoria do subflow (opcional)" },
+          category:    { type: "string" },
           active:      { type: "boolean" },
         },
         required: ["name"],
@@ -410,10 +419,95 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           name:        { type: "string" },
           description: { type: "string" },
-          script:      { type: "string", description: "Script da action (JavaScript)" },
+          script:      { type: "string" },
           active:      { type: "boolean" },
         },
         required: ["name", "script"],
+      },
+    },
+
+    // ── ACLs ───────────────────────────────────
+    {
+      name: "sn_create_acl",
+      description: "Cria uma ACL (Access Control Rule) no ServiceNow.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name:        { type: "string", description: "Nome da ACL (ex: incident.caller_id)" },
+          type:        { type: "string", enum: ["record", "client_callable_script_include", "soap", "rest"], description: "Tipo da ACL" },
+          operation:   { type: "string", enum: ["read", "write", "create", "delete", "execute"], description: "Operação controlada" },
+          role:        { type: "string", description: "Role necessária (ex: itil, admin)" },
+          script:      { type: "string", description: "Script de validação adicional (opcional)" },
+          condition:   { type: "string", description: "Condição encoded (opcional)" },
+          table:       { type: "string", description: "Tabela alvo (para type=record)" },
+          field:       { type: "string", description: "Campo específico (opcional, deixe vazio para ACL de tabela)" },
+          active:      { type: "boolean" },
+        },
+        required: ["name", "type", "operation"],
+      },
+    },
+    {
+      name: "sn_update_acl",
+      description: "Atualiza uma ACL existente no ServiceNow.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sys_id:    { type: "string", description: "sys_id da ACL" },
+          role:      { type: "string" },
+          script:    { type: "string" },
+          condition: { type: "string" },
+          active:    { type: "boolean" },
+        },
+        required: ["sys_id"],
+      },
+    },
+    {
+      name: "sn_delete_acl",
+      description: "Remove uma ACL do ServiceNow pelo sys_id.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sys_id: { type: "string", description: "sys_id da ACL a ser removida" },
+        },
+        required: ["sys_id"],
+      },
+    },
+    {
+      name: "sn_list_acls",
+      description: "Lista ACLs de uma tabela ou campo específico.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          table:     { type: "string", description: "Tabela alvo (ex: incident)" },
+          field:     { type: "string", description: "Campo específico (opcional)" },
+          operation: { type: "string", enum: ["read", "write", "create", "delete", "execute"], description: "Filtrar por operação (opcional)" },
+          limit:     { type: "number" },
+        },
+        required: ["table"],
+      },
+    },
+    {
+      name: "sn_add_role_to_acl",
+      description: "Adiciona uma role a uma ACL existente.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          acl_sys_id:  { type: "string", description: "sys_id da ACL" },
+          role_name:   { type: "string", description: "Nome da role (ex: itil, admin, approver_user)" },
+        },
+        required: ["acl_sys_id", "role_name"],
+      },
+    },
+    {
+      name: "sn_remove_role_from_acl",
+      description: "Remove uma role de uma ACL existente.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          acl_sys_id:  { type: "string", description: "sys_id da ACL" },
+          role_name:   { type: "string", description: "Nome da role a remover" },
+        },
+        required: ["acl_sys_id", "role_name"],
       },
     },
 
@@ -542,7 +636,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── BUSINESS RULES ──────────────────────
       case "sn_create_business_rule": {
         const data = await snPost("/api/now/table/sys_script", {
           name:           args.name,
@@ -569,7 +662,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (args.when      !== undefined) payload.when      = args.when;
         if (args.active    !== undefined) payload.active    = args.active;
         if (args.order     !== undefined) payload.order     = args.order;
-        if (args.action    !== undefined) {
+        if (args.action !== undefined) {
           payload.action_insert = args.action.includes("insert");
           payload.action_update = args.action.includes("update");
           payload.action_delete = args.action.includes("delete");
@@ -580,7 +673,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── SCRIPT INCLUDES ─────────────────────
       case "sn_create_script_include": {
         const data = await snPost("/api/now/table/sys_script_include", {
           name:            args.name,
@@ -605,7 +697,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── CLIENT SCRIPTS ──────────────────────
       case "sn_create_client_script": {
         const data = await snPost("/api/now/table/sys_script_client", {
           name:       args.name,
@@ -630,7 +721,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── UI POLICIES ─────────────────────────
       case "sn_create_ui_policy": {
         const data = await snPost("/api/now/table/sys_ui_policy", {
           short_description: args.name,
@@ -653,7 +743,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── SCHEDULED JOBS ──────────────────────
       case "sn_create_scheduled_job": {
         const data = await snPost("/api/now/table/sysauto_script", {
           name:     args.name,
@@ -675,7 +764,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── SERVICE CATALOG ─────────────────────
       case "sn_create_catalog_item": {
         const data = await snPost("/api/now/table/sc_cat_item", {
           name:              args.name,
@@ -748,59 +836,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── FLOW DESIGNER ───────────────────────
       case "sn_get_flow": {
-        const params = { sysparm_limit: 10 };
         if (args.sys_id) {
           const data = await snGet(`/api/now/table/sys_hub_flow/${args.sys_id}`);
           result = data.result;
         } else {
-          params.sysparm_query = `nameLIKE${args.name || ""}`;
-          params.sysparm_fields = "sys_id,name,description,active,sys_scope,trigger_type";
-          const data = await snGet("/api/now/table/sys_hub_flow", params);
+          const data = await snGet("/api/now/table/sys_hub_flow", {
+            sysparm_query:  `nameLIKE${args.name || ""}`,
+            sysparm_fields: "sys_id,name,description,active,sys_scope,trigger_type",
+            sysparm_limit:  10,
+          });
           result = data.result;
         }
         break;
       }
 
       case "sn_activate_flow": {
-        const data = await snPatch(`/api/now/table/sys_hub_flow/${args.sys_id}`, {
-          active: args.active,
-        });
-        result = {
-          sys_id: data.result.sys_id,
-          name:   data.result.name,
-          active: data.result.active,
-        };
+        const data = await snPatch(`/api/now/table/sys_hub_flow/${args.sys_id}`, { active: args.active });
+        result = { sys_id: data.result.sys_id, name: data.result.name, active: data.result.active };
         break;
       }
 
       case "sn_trigger_flow": {
-        // Usa a Flow API para disparar o flow
-        const body = {
-          inputs: args.inputs || {},
-        };
+        const body = { inputs: args.inputs || {} };
         if (args.table && args.record_sys_id) {
-          body.inputs.table = args.table;
+          body.inputs.table  = args.table;
           body.inputs.sys_id = args.record_sys_id;
         }
-        const data = await snPost(
-          `/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`,
-          body
-        );
+        const data = await snPost(`/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`, body);
         result = data.result || data;
         break;
       }
 
       case "sn_list_flow_executions": {
-        const params = {
-          sysparm_limit: args.limit || 10,
-          sysparm_query: `flow=${args.flow_sys_id}${args.status ? `^status=${args.status}` : ""}`,
-          sysparm_fields: "sys_id,flow,status,start_time,end_time,error",
-          sysparm_orderby: "sys_created_on",
+        const data = await snGet("/api/now/table/sys_flow_context", {
+          sysparm_limit:             args.limit || 10,
+          sysparm_query:             `flow=${args.flow_sys_id}${args.status ? `^status=${args.status}` : ""}`,
+          sysparm_fields:            "sys_id,flow,status,start_time,end_time,error",
+          sysparm_orderby:           "sys_created_on",
           sysparm_orderby_direction: "desc",
-        };
-        const data = await snGet("/api/now/table/sys_flow_context", params);
+        });
         result = data.result;
         break;
       }
@@ -828,6 +903,97 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
+      // ── ACLs ────────────────────────────────
+      case "sn_create_acl": {
+        const data = await snPost("/api/now/table/sys_security_acl", {
+          name:      args.name,
+          type:      args.type,
+          operation: args.operation,
+          role:      args.role || "",
+          script:    args.script || "",
+          condition: args.condition || "",
+          object:    args.table || "",
+          field:     args.field || "",
+          active:    args.active !== false,
+        });
+        result = { sys_id: data.result.sys_id, name: data.result.name };
+        break;
+      }
+
+      case "sn_update_acl": {
+        const payload = {};
+        if (args.role      !== undefined) payload.role      = args.role;
+        if (args.script    !== undefined) payload.script    = args.script;
+        if (args.condition !== undefined) payload.condition = args.condition;
+        if (args.active    !== undefined) payload.active    = args.active;
+        const data = await snPatch(`/api/now/table/sys_security_acl/${args.sys_id}`, payload);
+        result = { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
+        break;
+      }
+
+      case "sn_delete_acl": {
+        result = await snDelete(`/api/now/table/sys_security_acl/${args.sys_id}`);
+        result.sys_id = args.sys_id;
+        break;
+      }
+
+      case "sn_list_acls": {
+        let query = `object=${args.table}`;
+        if (args.field)     query += `^field=${args.field}`;
+        if (args.operation) query += `^operation=${args.operation}`;
+        const data = await snGet("/api/now/table/sys_security_acl", {
+          sysparm_query:  query,
+          sysparm_fields: "sys_id,name,type,operation,role,active,object,field",
+          sysparm_limit:  args.limit || 50,
+        });
+        result = data.result;
+        break;
+      }
+
+      case "sn_add_role_to_acl": {
+        // Busca a role pelo nome para obter o sys_id
+        const roleData = await snGet("/api/now/table/sys_user_role", {
+          sysparm_query:  `name=${args.role_name}`,
+          sysparm_fields: "sys_id,name",
+          sysparm_limit:  1,
+        });
+        if (!roleData.result || roleData.result.length === 0) {
+          throw new Error(`Role '${args.role_name}' não encontrada`);
+        }
+        const roleSysId = roleData.result[0].sys_id;
+        const data = await snPost("/api/now/table/sys_security_acl_role", {
+          sys_security_acl: args.acl_sys_id,
+          sys_user_role:    roleSysId,
+        });
+        result = { sys_id: data.result.sys_id, role: args.role_name, acl: args.acl_sys_id };
+        break;
+      }
+
+      case "sn_remove_role_from_acl": {
+        // Busca a role pelo nome
+        const roleData = await snGet("/api/now/table/sys_user_role", {
+          sysparm_query:  `name=${args.role_name}`,
+          sysparm_fields: "sys_id",
+          sysparm_limit:  1,
+        });
+        if (!roleData.result || roleData.result.length === 0) {
+          throw new Error(`Role '${args.role_name}' não encontrada`);
+        }
+        const roleSysId = roleData.result[0].sys_id;
+        // Busca o relacionamento ACL <-> role
+        const relData = await snGet("/api/now/table/sys_security_acl_role", {
+          sysparm_query: `sys_security_acl=${args.acl_sys_id}^sys_user_role=${roleSysId}`,
+          sysparm_limit: 1,
+        });
+        if (!relData.result || relData.result.length === 0) {
+          throw new Error(`Role '${args.role_name}' não está associada a esta ACL`);
+        }
+        result = await snDelete(`/api/now/table/sys_security_acl_role/${relData.result[0].sys_id}`);
+        result.role = args.role_name;
+        result.acl  = args.acl_sys_id;
+        break;
+      }
+
       // ── CAMPOS / TABELAS ────────────────────
       case "sn_create_field": {
         const data = await snPost("/api/now/table/sys_dictionary", {
@@ -852,7 +1018,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── EXECUTE SCRIPT ──────────────────────
       case "sn_execute_script": {
         const data = await snPost("/api/x_dev_agent/script_runner/execute", {
           script: args.script,
@@ -862,7 +1027,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── UPDATE SETS ─────────────────────────
       case "sn_create_update_set": {
         const data = await snPost("/api/now/table/sys_update_set", {
           name:        args.name,
@@ -883,7 +1047,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       }
 
-      // ── GENÉRICO ────────────────────────────
       case "sn_create_record": {
         const data = await snPost(`/api/now/table/${args.table}`, args.data);
         result = data.result;
@@ -914,4 +1077,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error("ServiceNow MCP Server v1.2.0 rodando...");
+console.error("ServiceNow MCP Server v1.3.0 rodando...");
