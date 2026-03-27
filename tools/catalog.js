@@ -1,57 +1,40 @@
 import { snGet, snPost, snPatch } from "../lib/client.js";
 
 // ─────────────────────────────────────────────
-//  TOOLS — Service Catalog
+//  TOOLS — Service Catalog Consolidated (v3.0)
 // ─────────────────────────────────────────────
 
 export const catalogTools = [
   {
-    name: "sn_create_catalog_item",
-    description: "Cria um item de catálogo no Service Catalog do ServiceNow.",
+    name: "sn_manage_catalog_item",
+    description: "Cria ou atualiza um item de catálogo no ServiceNow.",
     inputSchema: {
       type: "object",
       properties: {
-        env:               { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
+        env:               { type: "string" },
+        sys_id:            { type: "string", description: "Obrigatório para atualização" },
         name:              { type: "string" },
         short_description: { type: "string" },
         description:       { type: "string", description: "HTML suportado" },
         category:          { type: "string", description: "sys_id da categoria" },
-        workflow:          { type: "string", description: "sys_id do workflow (opcional)" },
+        workflow:          { type: "string", description: "sys_id do workflow" },
         active:            { type: "boolean" },
         order:             { type: "number" },
-        fulfillment_group: { type: "string", description: "sys_id do grupo de fulfillment" },
-        delivery_time:     { type: "string", description: "Tempo estimado (ex: 1 4 0)" },
+        fulfillment_group: { type: "string", description: "sys_id do grupo" },
+        delivery_time:     { type: "string", description: "Ex: 1 4 0" },
       },
-      required: ["name", "short_description"],
+      required: ["name"],
     },
   },
   {
-    name: "sn_update_catalog_item",
-    description: "Atualiza um item de catálogo existente.",
+    name: "sn_manage_catalog_variable",
+    description: "Cria ou atualiza uma variável em um item de catálogo.",
     inputSchema: {
       type: "object",
       properties: {
-        env:               { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        sys_id:            { type: "string" },
-        name:              { type: "string" },
-        short_description: { type: "string" },
-        description:       { type: "string" },
-        active:            { type: "boolean" },
-        workflow:          { type: "string" },
-        order:             { type: "number" },
-        fulfillment_group: { type: "string" },
-      },
-      required: ["sys_id"],
-    },
-  },
-  {
-    name: "sn_create_catalog_variable",
-    description: "Cria uma variável (campo) em um item de catálogo.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        env:                 { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        catalog_item_sys_id: { type: "string" },
+        env:                 { type: "string" },
+        sys_id:              { type: "string", description: "Obrigatório para atualização" },
+        catalog_item_sys_id: { type: "string", description: "Obrigatório para criação" },
         name:                { type: "string" },
         question_text:       { type: "string" },
         type:                { type: "string", description: "1=Text, 2=Select, 3=MultiLine, 4=Reference, 5=CheckBox, 6=Date" },
@@ -62,37 +45,20 @@ export const catalogTools = [
         help_text:           { type: "string" },
         reference_table:     { type: "string" },
       },
-      required: ["catalog_item_sys_id", "name", "question_text", "type"],
+      required: ["name"],
     },
   },
   {
-    name: "sn_update_catalog_variable",
-    description: "Atualiza uma variável existente de um item de catálogo.",
+    name: "sn_manage_catalog_category",
+    description: "Cria ou atualiza uma categoria no Service Catalog.",
     inputSchema: {
       type: "object",
       properties: {
-        env:           { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        sys_id:        { type: "string" },
-        question_text: { type: "string" },
-        mandatory:     { type: "boolean" },
-        active:        { type: "boolean" },
-        order:         { type: "number" },
-        default_value: { type: "string" },
-        help_text:     { type: "string" },
-      },
-      required: ["sys_id"],
-    },
-  },
-  {
-    name: "sn_create_catalog_category",
-    description: "Cria uma categoria no Service Catalog.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
+        env:         { type: "string" },
+        sys_id:      { type: "string", description: "Para atualização" },
         title:       { type: "string" },
         description: { type: "string" },
-        catalog:     { type: "string", description: "sys_id do catálogo pai (opcional)" },
+        catalog:     { type: "string", description: "sys_id do catálogo pai" },
         active:      { type: "boolean" },
         order:       { type: "number" },
       },
@@ -102,79 +68,78 @@ export const catalogTools = [
 ];
 
 // ─────────────────────────────────────────────
-//  HANDLERS — Service Catalog
+//  HANDLERS
 // ─────────────────────────────────────────────
 
 export async function handleCatalogTool(name, args) {
-  switch (name) {
+  const env = args.env || null;
 
-    case "sn_create_catalog_item": {
-      const data = await snPost("/api/now/table/sc_cat_item", {
-        name:              args.name,
-        short_description: args.short_description,
-        description:       args.description || "",
-        category:          args.category || "",
-        workflow:          args.workflow || "",
-        active:            args.active !== false,
-        order:             args.order || 100,
-        group:             args.fulfillment_group || "",
-        delivery_time:     args.delivery_time || "",
-      }, args.env);
-      return { sys_id: data.result.sys_id, name: data.result.name };
+  if (name === "sn_manage_catalog_item") {
+    const { sys_id, ...data } = args;
+    const payload = {
+      name:              data.name,
+      short_description: data.short_description,
+      description:       data.description || "",
+      category:          data.category || "",
+      workflow:          data.workflow || "",
+      active:            data.active !== false,
+      order:             data.order || 100,
+      group:             data.fulfillment_group || "",
+      delivery_time:     data.delivery_time || "",
+    };
+
+    if (sys_id) {
+      const { result } = await snPatch(`/api/now/table/sc_cat_item/${sys_id}`, payload, env);
+      return { action: "updated", sys_id: result.sys_id, name: result.name };
+    } else {
+      const { result } = await snPost("/api/now/table/sc_cat_item", payload, env);
+      return { action: "created", sys_id: result.sys_id, name: result.name };
     }
-
-    case "sn_update_catalog_item": {
-      const payload = {};
-      if (args.name              !== undefined) payload.name              = args.name;
-      if (args.short_description !== undefined) payload.short_description = args.short_description;
-      if (args.description       !== undefined) payload.description       = args.description;
-      if (args.active            !== undefined) payload.active            = args.active;
-      if (args.workflow          !== undefined) payload.workflow          = args.workflow;
-      if (args.order             !== undefined) payload.order             = args.order;
-      if (args.fulfillment_group !== undefined) payload.group             = args.fulfillment_group;
-      const data = await snPatch(`/api/now/table/sc_cat_item/${args.sys_id}`, payload, args.env);
-      return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
-    }
-
-    case "sn_create_catalog_variable": {
-      const data = await snPost("/api/now/table/item_option_new", {
-        cat_item:      args.catalog_item_sys_id,
-        name:          args.name,
-        question_text: args.question_text,
-        type:          args.type,
-        mandatory:     args.mandatory || false,
-        active:        args.active !== false,
-        order:         args.order || 100,
-        default_value: args.default_value || "",
-        help_text:     args.help_text || "",
-        reference:     args.reference_table || "",
-      }, args.env);
-      return { sys_id: data.result.sys_id, name: data.result.name };
-    }
-
-    case "sn_update_catalog_variable": {
-      const payload = {};
-      if (args.question_text !== undefined) payload.question_text = args.question_text;
-      if (args.mandatory     !== undefined) payload.mandatory     = args.mandatory;
-      if (args.active        !== undefined) payload.active        = args.active;
-      if (args.order         !== undefined) payload.order         = args.order;
-      if (args.default_value !== undefined) payload.default_value = args.default_value;
-      if (args.help_text     !== undefined) payload.help_text     = args.help_text;
-      const data = await snPatch(`/api/now/table/item_option_new/${args.sys_id}`, payload, args.env);
-      return { sys_id: data.result.sys_id, updated: Object.keys(payload) };
-    }
-
-    case "sn_create_catalog_category": {
-      const data = await snPost("/api/now/table/sc_category", {
-        title:       args.title,
-        description: args.description || "",
-        sc_catalog:  args.catalog || "",
-        active:      args.active !== false,
-        order:       args.order || 100,
-      }, args.env);
-      return { sys_id: data.result.sys_id, title: data.result.title };
-    }
-
-    default: return null;
   }
+
+  if (name === "sn_manage_catalog_variable") {
+    const { sys_id, ...data } = args;
+    const payload = {
+      cat_item:      data.catalog_item_sys_id,
+      name:          data.name,
+      question_text: data.question_text,
+      type:          data.type,
+      mandatory:     !!data.mandatory,
+      active:        data.active !== false,
+      order:         data.order || 100,
+      default_value: data.default_value || "",
+      help_text:     data.help_text || "",
+      reference:     data.reference_table || "",
+    };
+
+    if (sys_id) {
+      delete payload.cat_item; // Não se move variável de item via update simples
+      const { result } = await snPatch(`/api/now/table/item_option_new/${sys_id}`, payload, env);
+      return { action: "updated", sys_id: result.sys_id, name: result.name };
+    } else {
+      const { result } = await snPost("/api/now/table/item_option_new", payload, env);
+      return { action: "created", sys_id: result.sys_id, name: result.name };
+    }
+  }
+
+  if (name === "sn_manage_catalog_category") {
+    const { sys_id, ...data } = args;
+    const payload = {
+      title:       data.title,
+      description: data.description || "",
+      sc_catalog:  data.catalog || "",
+      active:      data.active !== false,
+      order:       data.order || 100,
+    };
+
+    if (sys_id) {
+      const { result } = await snPatch(`/api/now/table/sc_category/${sys_id}`, payload, env);
+      return { action: "updated", sys_id: result.sys_id, title: result.title };
+    } else {
+      const { result } = await snPost("/api/now/table/sc_category", payload, env);
+      return { action: "created", sys_id: result.sys_id, title: result.title };
+    }
+  }
+
+  return null;
 }

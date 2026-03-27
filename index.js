@@ -7,24 +7,22 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { scriptTools,       handleScriptTool       } from "./tools/scripts.js";
 import { catalogTools,      handleCatalogTool      } from "./tools/catalog.js";
 import { flowTools,         handleFlowTool         } from "./tools/flow.js";
-import { aclTools,          handleAclTool          } from "./tools/security.js";
-import { notificationTools, handleNotificationTool } from "./tools/security.js";
-import { roleTools,         handleRoleTool         } from "./tools/security.js";
+import { securityTools,     handleSecurityTool     } from "./tools/security.js";
 import { deployTools,       handleDeployTool       } from "./tools/deploy.js";
 import { attachmentTools,   handleAttachmentTool   } from "./tools/attachments.js";
+import { propertyTools,     handlePropertyTool     } from "./tools/properties.js";
 
 // ─────────────────────────────────────────────
-//  Todas as ferramentas registradas
+//  Todas as ferramentas registradas (CONSOLIDADO v3.0)
 // ─────────────────────────────────────────────
 const ALL_TOOLS = [
   ...scriptTools,
   ...catalogTools,
   ...flowTools,
-  ...aclTools,
-  ...notificationTools,
-  ...roleTools,
+  ...securityTools,
   ...deployTools,
   ...attachmentTools,
+  ...propertyTools,
 ];
 
 // ─────────────────────────────────────────────
@@ -34,18 +32,17 @@ const HANDLERS = [
   handleScriptTool,
   handleCatalogTool,
   handleFlowTool,
-  handleAclTool,
-  handleNotificationTool,
-  handleRoleTool,
+  handleSecurityTool,
   handleDeployTool,
   handleAttachmentTool,
+  handlePropertyTool,
 ];
 
 // ─────────────────────────────────────────────
-//  Server
+//  Server Definition
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-dev-agent", version: "2.2.0" },
+  { name: "servicenow-mcp-server", version: "3.0.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -75,8 +72,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // ─────────────────────────────────────────────
-//  Start
+//  Start Transport
 // ─────────────────────────────────────────────
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`ServiceNow MCP Server v2.2.0 rodando — ${ALL_TOOLS.length} ferramentas ativas`);
+
+console.error(`ServiceNow MCP Server v3.0.0 rodando — ${ALL_TOOLS.length} ferramentas consolidadas`);
