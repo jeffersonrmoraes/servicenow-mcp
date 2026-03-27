@@ -11,6 +11,7 @@ import { aclTools,          handleAclTool          } from "./tools/security.js";
 import { notificationTools, handleNotificationTool } from "./tools/security.js";
 import { roleTools,         handleRoleTool         } from "./tools/security.js";
 import { deployTools,       handleDeployTool       } from "./tools/deploy.js";
+import { attachmentTools,   handleAttachmentTool   } from "./tools/attachments.js";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas
@@ -23,6 +24,7 @@ const ALL_TOOLS = [
   ...notificationTools,
   ...roleTools,
   ...deployTools,
+  ...attachmentTools,
 ];
 
 // ─────────────────────────────────────────────
@@ -36,6 +38,7 @@ const HANDLERS = [
   handleNotificationTool,
   handleRoleTool,
   handleDeployTool,
+  handleAttachmentTool,
 ];
 
 // ─────────────────────────────────────────────
