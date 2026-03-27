@@ -17,16 +17,26 @@ app.use(express.static(path.join(__dirname, './public')));
 //  Endpoins da API
 // ─────────────────────────────────────────────
 
-// Ler o .env e parsear
+// Ler o .env e parsear (com fallback para process.env)
 app.get('/api/env', (req, res) => {
-  if (!fs.existsSync(envPath)) return res.json({});
-  const content = fs.readFileSync(envPath, 'utf8');
-  const lines = content.split('\n');
   const env = {};
-  lines.forEach(line => {
-    const [key, value] = line.split('=');
-    if (key && value) env[key.trim()] = value.trim();
+  
+  // 1. Carregar do arquivo .env (se existir)
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split('\n').forEach(line => {
+      const [key, value] = line.split('=');
+      if (key && value) env[key.trim()] = value.trim();
+    });
+  }
+
+  // 2. Mesclar com variáveis que contenham SN_INSTANCE (Fallback do Sistema)
+  Object.entries(process.env).forEach(([key, value]) => {
+    if (key.includes('SN_INSTANCE') || key.includes('SN_USER') || key.includes('SN_PASSWORD')) {
+      if (!env[key]) env[key] = value;
+    }
   });
+
   res.json(env);
 });
 
@@ -42,16 +52,25 @@ app.post('/api/env', (req, res) => {
 
 // Testar conexão com ServiceNow
 app.post('/api/test', async (req, res) => {
-  const { instance, user, password } = req.body;
+  let { instance, user, password } = req.body;
+  
+  if (!instance || !user || !password) return res.status(400).json({ error: 'Faltam credenciais' });
+
+  // Inteligência de URL (v3.4.2): Se for apenas o prefixo, completa a URL
+  if (!instance.startsWith('http')) {
+    instance = `https://${instance}.service-now.com`;
+  }
+
   const auth = Buffer.from(`${user}:${password}`).toString('base64');
   
   try {
-    const response = await fetch(`https://${instance}.service-now.com/api/now/table/sys_user?sysparm_limit=1`, {
+    const response = await fetch(`${instance}/api/now/table/sys_user?sysparm_limit=1`, {
       headers: {
         'Authorization': `Basic ${auth}`,
         'Accept': 'application/json'
       }
     });
+    
     if (response.ok) {
       res.json({ status: 'connected' });
     } else {

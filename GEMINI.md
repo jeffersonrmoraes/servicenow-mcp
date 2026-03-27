@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v3.2.0)
+# GEMINI.md — Contexto do Projeto para IA (v3.5.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,8 +7,8 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## 📌 Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `3.2.0` (Minor Release - Visual Command Center)
-- **Descrição**: Servidor MCP que expõe ferramentas consolidadas e um Dashboard Web para gestão visual de instâncias.
+- **Versão Atual**: `3.5.0` (Dark Tech Edition)
+- **Descrição**: Servidor MCP que expõe ferramentas consolidadas e um Dashboard Web (Dark Tech) com suporte a Auto-URL, Privacy Masking e Instance Manager GUI.
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API).
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
 
@@ -48,8 +48,8 @@ servicenow-mcp/
 
 | Item | Valor |
 |---|---|
-| Dashboard | Express + Vanilla HTML/JS (sem frameworks pesados) |
-| UI | Glassmorphism + Hextech Design System |
+| Dashboard | Express + Vanilla HTML/JS |
+| UI | Dark Tech Aesthetics (#00F2FF, JetBrains Mono) + Privacy Masking |
 | Módulos | ESM (`"type": "module"`) |
 
 ---
@@ -80,7 +80,7 @@ O servidor MCP e o Dashboard trabalham em conjunto para oferecer uma experiênci
 ## ⚠️ Regras Importantes
 
 1. **Nunca use `require()`** — o projeto é 100% ESM.
-2. **Dashboard Aesthetics**: Qualquer mudança na UI do dashboard deve respeitar o Glassmorphism e a paleta Hextech (#C8AA6E).
-3. **Versão**: Bump constante em toda grande entrega.
-4. **Padrão de Prefixos**: Credenciais no `.env` devem seguir o padrão `PREFIXO_SN_INSTANCE`. O Dashboard auxilia nessa configuração.
+2. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" de alta precisão (preto/ciano) com "Shadow Masking" para senhas (`••••••••`).
+3. **Versão**: As atualizações devem acompanhar o semantic versioning. 
+4. **Smart-URL**: Credenciais no `.env` podem receber apenas os prefixos (ex: `dev12345`), e o `lib/client.js` faz o auto-complete para a URL do SN. A instância principal não usa prefixo (apenas `SN_INSTANCE`).
 

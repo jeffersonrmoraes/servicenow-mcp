@@ -1,67 +1,86 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP Dashboard | ServiceNow</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <title>MCP Dashboard | ServiceNow Dark Tech</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="glass-bg"></div>
-    
-    <header>
-        <div class="logo-box">
-            <span class="mcp-label">SERVICE-NOW</span>
-            <h1>MCP Dashboard <span>v3.2.0</span></h1>
+    <div class="container">
+        <header>
+            <div>
+                <h1>ServiceNow <span>MCP</span></h1>
+                <p style="color:var(--tech-text-dim); font-size: 0.9rem;">Visual Command Center v3.4.0</p>
+            </div>
+            <div class="server-status">
+                🟢 SYSTEM_ONLINE-3.4.0
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- COLUNA ESQUERDA: GESTÃO DE AMBIENTES -->
+            <div class="section-card glass" id="ambientes">
+                <h2>
+                    Ambientes (Multi-tenant)
+                    <button class="btn-tech primary" id="add-env-btn" style="min-width: 140px;">[+] ADICIONAR INSTÂNCIA</button>
+                </h2>
+                <div id="instance-list">
+                    <!-- Cards de instâncias injetados via JS -->
+                    <p style="color:var(--tech-text-dim)">Localizando instâncias...</p>
+                </div>
+            </div>
+
+            <!-- COLUNA DIREITA: EDITOR DE CONFIG -->
+            <div class="section-card glass" id="editor">
+                <h2>
+                    Arquivo de Config (.env)
+                    <span id="toggle-visibility" class="edit-badge" style="position:static; font-size: 0.9rem; cursor: pointer;">[👁️ REVELAR SENHAS]</span>
+                </h2>
+                <textarea id="env-editor" class="tech-editor" spellcheck="false" placeholder="# Carregando dados..."></textarea>
+                <button class="btn-tech primary" id="save-env-btn" style="margin-top: 20px; width: 100%;">SINCRONIZAR CONFIGURAÇÕES</button>
+            </div>
+        </main>
+
+        <footer>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                REMOT_PORT: 3000 // STATUS: READY // DESIGN_VERSION: DARK_TECH_3.4.0
+            </div>
+            <p style="margin-top: 10px;">© 2026 ServiceNow MCP Platform — Crafted for High Precision</p>
+        </footer>
+    </div>
+
+    <!-- MODAL DE INSTÂNCIA v3.4.0 -->
+    <div id="mcp-modal" class="modal-overlay">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2 id="modal-title" style="margin-bottom: 0;">GERENCIAR_INSTÂNCIA</h2>
+                <button class="close-btn" id="close-modal" style="color:var(--tech-text-dim)">×</button>
+            </div>
+            <form id="instance-form">
+                <div class="input-group">
+                    <label>AMB_PREFIX (Ex: PDI, DEV)</label>
+                    <input type="text" id="inst-prefix" class="input-tech" placeholder="PDI" required>
+                </div>
+                <div class="input-group">
+                    <label>SYS_INSTANCE (PDI NAME)</label>
+                    <input type="text" id="inst-name" class="input-tech" placeholder="dev12345" required>
+                </div>
+                <div class="input-group">
+                    <label>ADMIN_USER</label>
+                    <input type="text" id="inst-user" class="input-tech" value="admin" required>
+                </div>
+                <div class="input-group">
+                    <label>PASS_KEY (TOKEN)</label>
+                    <input type="password" id="inst-password" class="input-tech" required>
+                </div>
+                <div class="modal-actions" style="margin-top: 30px;">
+                    <button type="submit" class="btn-tech primary" style="flex: 2;">SAVE_CHANGES</button>
+                    <button type="button" class="btn-tech danger" id="delete-inst-btn" style="flex: 1;">REMOVE</button>
+                </div>
+            </form>
         </div>
-        <div class="status-badge" id="global-status">
-            <span class="pulse"></span> 🟢 Servidor Local Ativo
-        </div>
-    </header>
-
-    <main class="dashboard-grid">
-        
-        <!-- Seção de Instâncias -->
-        <section class="card glass">
-            <div class="card-header">
-                <h2>🌐 Ambientes (Multi-tenant)</h2>
-                <button class="btn-hex" id="add-env-btn">+ Novo</button>
-            </div>
-            <div id="instance-list" class="instance-list">
-                <!-- Injetar via JS -->
-                 <p class="loading">Carregando instâncias...</p>
-            </div>
-        </section>
-
-        <!-- Seção de Configuração -->
-        <section class="card glass">
-            <div class="card-header">
-                <h2>⚙️ Configuração .env</h2>
-                <button class="btn-hex primary" id="save-env-btn">Salvar Alterações</button>
-            </div>
-            <div class="env-editor-box">
-                <textarea id="env-editor" spellcheck="false"></textarea>
-            </div>
-        </section>
-
-        <!-- Seção de Ferramentas -->
-        <section class="card glass full-width">
-            <div class="card-header">
-                <h2>🛠️ Tool Explorer (v3.1.0)</h2>
-            </div>
-            <div id="tools-list" class="tools-grid">
-                <!-- Injetar via JS -->
-            </div>
-        </section>
-
-    </main>
-
-    <footer class="glass">
-        <p>© 2026 ServiceNow MCP Platform — Crafted with Visual Excellence</p>
-    </footer>
+    </div>
 
     <script src="app.js"></script>
 </body>

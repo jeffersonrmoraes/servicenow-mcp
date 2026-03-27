@@ -1,4 +1,4 @@
-# Guia de Ferramentas - ServiceNow MCP Server (v3.2.0)
+# Guia de Ferramentas - ServiceNow MCP Server (v3.5.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 

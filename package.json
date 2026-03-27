@@ -1,6 +1,6 @@
 {
   "name": "servicenow-mcp-server",
-  "version": "3.2.0",
+  "version": "3.5.0",
   "description": "MCP Server para desenvolvimento no ServiceNow via Claude, VS Code e Google Agentspace",
   "type": "module",
   "main": "index.js",
@@ -12,6 +12,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-http-proxy": "^2.1.2"
   },

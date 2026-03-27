@@ -2,7 +2,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const envEditor = document.getElementById('env-editor');
     const instanceList = document.getElementById('instance-list');
     const saveBtn = document.getElementById('save-env-btn');
-    const toolsGrid = document.getElementById('tools-list');
+    const addEnvBtn = document.getElementById('add-env-btn');
+    const togglePassBtn = document.getElementById('toggle-visibility');
+    
+    // Modal Elements
+    const modal = document.getElementById('mcp-modal');
+    const closeModal = document.getElementById('close-modal');
+    const instanceForm = document.getElementById('instance-form');
+    const deleteInstBtn = document.getElementById('delete-inst-btn');
+    
+    // Form Inputs
+    const instPrefix = document.getElementById('inst-prefix');
+    const instName = document.getElementById('inst-name');
+    const instUser = document.getElementById('inst-user');
+    const instPass = document.getElementById('inst-password');
+
+    let currentConfig = {};
+    let isMasked = true; // Privacidade em primeiro lugar por padrão
+
+    const MASK = '••••••••';
 
     // ─────────────────────────────────────────────
     //  API FETCHERS
@@ -10,20 +28,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadConfig() {
         const res = await fetch('/api/env');
-        const data = await res.json();
-        
+        currentConfig = await res.json();
+        renderLayout();
+    }
+
+    function renderLayout() {
         let editorText = '';
         const instances = [];
 
-        // Parse simples para lista visual
-        Object.entries(data).forEach(([key, value]) => {
-            editorText += `${key}=${value}\n`;
-            if (key.endsWith('_SN_INSTANCE')) {
-                const prefix = key.replace('_SN_INSTANCE', '');
+        Object.entries(currentConfig).forEach(([key, value]) => {
+            const displayValue = (isMasked && key.includes('PASSWORD')) ? MASK : value;
+            editorText += `${key}=${displayValue}\n`;
+            
+            if (key.endsWith('SN_INSTANCE')) {
+                const prefix = key.replace('SN_INSTANCE', '').replace('_', '') || 'Main';
                 instances.push({
                     prefix,
                     instance: value,
-                    user: data[`${prefix}_SN_USER`] || 'Não configurado'
+                    user: currentConfig[`${prefix === 'Main' ? '' : prefix + '_'}SN_USER`] || 'Não configurado'
                 });
             }
         });
@@ -34,95 +56,157 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderInstances(instances) {
         if (instances.length === 0) {
-            instanceList.innerHTML = '<p class="text-muted">Nenhuma instância PDI/DEV configurada.</p>';
+            instanceList.innerHTML = '<p style="color:var(--tech-text-dim)">Nenhuma instância configurada.</p>';
             return;
         }
 
         instanceList.innerHTML = instances.map(inst => `
             <div class="instance-card">
-                <div>
-                    <div class="instance-name">${inst.prefix} Instance</div>
-                    <div class="instance-url">https://${inst.instance}.service-now.com</div>
-                    <div class="instance-user">User: ${inst.user}</div>
+                <div class="instance-info">
+                    <div class="name">${inst.prefix} Instance</div>
+                    <div class="details">https://${inst.instance}.service-now.com — ${inst.user}</div>
                 </div>
-                <button class="btn-hex" onclick="testConnection('${inst.prefix}')">Testar</button>
+                <button class="btn-tech" onclick="testConnection('${inst.prefix}')">Testar</button>
+                <div class="settings-icon-btn" onclick="editInstance('${inst.prefix}')" title="Configurações">⚙️</div>
             </div>
         `).join('');
     }
 
-    async function saveConfig() {
-        const text = envEditor.value;
-        const lines = text.split('\n');
-        const data = {};
-        lines.forEach(line => {
-            const [k, v] = line.split('=');
-            if (k && v) data[k.trim()] = v.trim();
-        });
-
-        saveBtn.innerText = 'Salvando...';
+    async function pushConfig(updatedConfig) {
         await fetch('/api/env', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(updatedConfig)
         });
-        
-        setTimeout(() => {
-            saveBtn.innerText = 'Salvo com Sucesso!';
-            setTimeout(() => saveBtn.innerText = 'Salvar Alterações', 2000);
-            loadConfig();
-        }, 800);
+        await loadConfig();
     }
 
     // ─────────────────────────────────────────────
-    //  EVENTOS
+    //  PRIVACY LOGIC (v3.4.3)
     // ─────────────────────────────────────────────
 
-    saveBtn.addEventListener('click', saveConfig);
+    togglePassBtn.addEventListener('click', () => {
+        isMasked = !isMasked;
+        togglePassBtn.innerText = isMasked ? '[👁️ REVELAR SENHAS]' : '[🔒 OCULTAR SENHAS]';
+        renderLayout();
+    });
 
-    // Inicialização
+    // ─────────────────────────────────────────────
+    //  MODAL LOGIC
+    // ─────────────────────────────────────────────
+
+    window.editInstance = (prefix) => {
+        const isMain = prefix === 'Main';
+        const p = isMain ? '' : prefix + '_';
+        
+        instPrefix.value = prefix;
+        instPrefix.disabled = true;
+        instName.value = currentConfig[`${p}SN_INSTANCE`] || '';
+        instUser.value = currentConfig[`${p}SN_USER`] || 'admin';
+        instPass.value = currentConfig[`${p}SN_PASSWORD`] || '';
+        
+        deleteInstBtn.style.display = 'block';
+        modal.classList.add('active');
+    };
+
+    addEnvBtn.addEventListener('click', () => {
+        instanceForm.reset();
+        instPrefix.disabled = false;
+        deleteInstBtn.style.display = 'none';
+        modal.classList.add('active');
+    });
+
+    closeModal.addEventListener('click', () => modal.classList.remove('active'));
+
+    instanceForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const prefix = instPrefix.value.toUpperCase().replace(/\s/g, '');
+        const isMain = prefix === 'MAIN';
+        const p = isMain ? '' : prefix + '_';
+
+        currentConfig[`${p}SN_INSTANCE`] = instName.value;
+        currentConfig[`${p}SN_USER`] = instUser.value;
+        currentConfig[`${p}SN_PASSWORD`] = instPass.value;
+
+        await pushConfig(currentConfig);
+        modal.classList.remove('active');
+    });
+
+    deleteInstBtn.addEventListener('click', async () => {
+        if (!confirm('Tem certeza que deseja remover esta instância?')) return;
+        const prefix = instPrefix.value;
+        const p = prefix === 'Main' ? '' : prefix + '_';
+        delete currentConfig[`${p}SN_INSTANCE`];
+        delete currentConfig[`${p}SN_USER`];
+        delete currentConfig[`${p}SN_PASSWORD`];
+        await pushConfig(currentConfig);
+        modal.classList.remove('active');
+    });
+
+    // ─────────────────────────────────────────────
+    //  SECURE MANUAL SAVE (v3.4.3)
+    // ─────────────────────────────────────────────
+
+    saveBtn.addEventListener('click', async () => {
+        const text = envEditor.value;
+        const lines = text.split('\n');
+        const newData = { ...currentConfig }; // Iniciar com os dados reais em memória
+
+        lines.forEach(line => {
+            const [k, v] = line.split('=');
+            if (!k || !v) return;
+            const key = k.trim();
+            const val = v.trim();
+
+            // SÓ ATUALIZAR se o valor NÃO FOR a máscara de privacidade
+            if (val !== MASK) {
+                newData[key] = val;
+            }
+        });
+
+        saveBtn.innerText = 'PROTEC_SYNC...';
+        await pushConfig(newData);
+        
+        setTimeout(() => {
+            saveBtn.innerText = 'SYNC_COMPLETE!';
+            setTimeout(() => saveBtn.innerText = 'SINCRONIZAR CONFIGURAÇÕES', 2000);
+        }, 500);
+    });
+
     loadConfig();
 });
 
-// Tornar Global para o botão
+// TEST CONNECTION (GLOBAL)
 window.testConnection = async (prefix) => {
-    // Pegar dados atuais do editor (simulado para o teste)
-    const lines = document.getElementById('env-editor').value.split('\n');
-    const data = {};
-    lines.forEach(line => {
-        const [k, v] = line.split('=');
-        if (k && v) data[k.trim()] = v.trim();
-    });
+    // Pegar estado real atual da memória em vez do editor mascarado
+    const resEnv = await fetch('/api/env');
+    const envData = await resEnv.json();
+    const p = prefix === 'Main' ? '' : prefix + '_';
 
     const body = {
-        instance: data[`${prefix}_SN_INSTANCE`],
-        user:     data[`${prefix}_SN_USER`],
-        password: data[`${prefix}_SN_PASSWORD`]
+        instance: envData[`${p}SN_INSTANCE`],
+        user:     envData[`${p}SN_USER`],
+        password: envData[`${p}SN_PASSWORD`]
     };
 
     const btn = event.target;
-    const oldText = btn.innerText;
     btn.innerText = '...';
 
-    const res = await fetch('/api/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
-    const result = await res.json();
-
-    if (result.status === 'connected') {
-        btn.innerHTML = '✅ OK';
-        btn.style.borderColor = '#25ef25';
-        btn.style.color = '#25ef25';
-    } else {
-        btn.innerHTML = '❌ Erro';
-        btn.style.borderColor = '#ff4d4d';
-        btn.style.color = '#ff4d4d';
+    try {
+        const res = await fetch('/api/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const result = await res.json();
+        btn.innerHTML = result.status === 'connected' ? '✅ OK' : '❌ ERR';
+        btn.style.color = result.status === 'connected' ? '#00FF41' : '#FF2B2B';
+    } catch {
+        btn.innerHTML = '❌ ERR';
     }
 
     setTimeout(() => {
-        btn.innerText = oldText;
-        btn.style.borderColor = '';
+        btn.innerText = 'Testar';
         btn.style.color = '';
     }, 3000);
 };
