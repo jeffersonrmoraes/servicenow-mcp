@@ -38,7 +38,7 @@ git clone https://github.com/jeffersonrmoraes/servicenow-mcp.git
 cd servicenow-mcp
 npm install
 cp .env.example .env   # preencha com suas credenciais
-node index.js          # ServiceNow MCP Server v2.1.0 rodando — 50+ ferramentas ativas
+node index.js          # ServiceNow MCP Server v2.2.0 rodando — 55 ferramentas ativas
 ```
 
 ---
@@ -268,6 +268,14 @@ servicenow-mcp/
 | `sn_list_update_sets` | Lista Update Sets com filtro por estado |
 | `sn_complete_update_set` | Marca Update Set como completo |
 
+### 📎 Attachments
+| Ferramenta | Descrição |
+|---|---|
+| `sn_upload_attachment` | Faz upload de arquivo (Base64) como anexo em qualquer registro |
+| `sn_list_attachments` | Lista todos os anexos de um registro (nome, tipo, tamanho, link) |
+| `sn_download_attachment` | Baixa o conteúdo de um anexo e retorna em Base64 |
+| `sn_delete_attachment` | Remove um anexo pelo sys_id |
+
 ### 🔧 Genérico
 | Ferramenta | Descrição |
 |---|---|
@@ -350,7 +358,8 @@ e marque como completo ao terminar."
 
 | Versão | Data | O que mudou |
 |---|---|---|
-| **v2.1.0** | 2026-03-27 | 🌐 **Multi-Instância Dinâmica** — suporte a N ambientes simultâneos via prefixo `env` em todas as ferramentas. Refatoração completa do HTTP client (`lib/client.js`) com `getContext(env)`. Atualização de schemas e handlers em todos os módulos. Documentação `AI_REFERENCE.md` criada. |
+| **v2.2.0** | 2026-03-27 | 📎 **Attachment API** — 4 novas ferramentas: `sn_upload_attachment`, `sn_list_attachments`, `sn_download_attachment`, `sn_delete_attachment`. Adição de `snPostBinary` e `snGetBinary` no HTTP client para tráfego de arquivos binários via Base64. Total: 55 ferramentas. |
+| v2.1.0 | 2026-03-27 | 🌐 **Multi-Instância Dinâmica** — suporte a N ambientes simultâneos via prefixo `env` em todas as ferramentas. Refatoração completa do HTTP client (`lib/client.js`) com `getContext(env)`. Atualização de schemas e handlers em todos os módulos. Documentação `AI_REFERENCE.md` criada. |
 | v2.0.0 | — | Refatoração modular + Notifications + Roles/Grupos + Deploy melhorado + `sn_delete_record` (~50 ferramentas) |
 | v1.3.0 | — | ACLs e Segurança — create, update, delete, list, add/remove roles (6 ferramentas) |
 | v1.2.0 | — | Service Catalog + Flow Designer (11 ferramentas) |
@@ -363,7 +372,7 @@ e marque como completo ao terminar."
 
 | Feature | Status |
 |---|---|
-| Attachment API (upload/download/delete via Base64) | 🔜 Próximo |
+| Attachment API (upload/download/delete via Base64) | ✅ Concluído (v2.2.0) |
 | System Properties (get/set) | 🔜 Próximo |
 | Knowledge Base (search/create articles) | 📋 Planejado |
 | CMDB & CI Relationships | 📋 Planejado |
