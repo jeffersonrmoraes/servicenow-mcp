@@ -42,7 +42,7 @@ const HANDLERS = [
 //  Server
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-dev-agent", version: "2.0.0" },
+  { name: "servicenow-dev-agent", version: "2.1.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -76,4 +76,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // ─────────────────────────────────────────────
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`ServiceNow MCP Server v2.0.0 rodando — ${ALL_TOOLS.length} ferramentas ativas`);
+console.error(`ServiceNow MCP Server v2.1.0 rodando — ${ALL_TOOLS.length} ferramentas ativas`);
