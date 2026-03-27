@@ -1,2 +1,0 @@
-ServiceNow MCP Server v2.1.0 rodando — 51 ferramentas ativas
-^C
