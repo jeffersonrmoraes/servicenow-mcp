@@ -11,6 +11,7 @@ export const catalogTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:               { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:              { type: "string" },
         short_description: { type: "string" },
         description:       { type: "string", description: "HTML suportado" },
@@ -30,6 +31,7 @@ export const catalogTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:               { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:            { type: "string" },
         name:              { type: "string" },
         short_description: { type: "string" },
@@ -48,6 +50,7 @@ export const catalogTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:                 { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         catalog_item_sys_id: { type: "string" },
         name:                { type: "string" },
         question_text:       { type: "string" },
@@ -68,6 +71,7 @@ export const catalogTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:           { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:        { type: "string" },
         question_text: { type: "string" },
         mandatory:     { type: "boolean" },
@@ -85,6 +89,7 @@ export const catalogTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         title:       { type: "string" },
         description: { type: "string" },
         catalog:     { type: "string", description: "sys_id do catálogo pai (opcional)" },
@@ -114,7 +119,7 @@ export async function handleCatalogTool(name, args) {
         order:             args.order || 100,
         group:             args.fulfillment_group || "",
         delivery_time:     args.delivery_time || "",
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -127,7 +132,7 @@ export async function handleCatalogTool(name, args) {
       if (args.workflow          !== undefined) payload.workflow          = args.workflow;
       if (args.order             !== undefined) payload.order             = args.order;
       if (args.fulfillment_group !== undefined) payload.group             = args.fulfillment_group;
-      const data = await snPatch(`/api/now/table/sc_cat_item/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sc_cat_item/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
@@ -143,7 +148,7 @@ export async function handleCatalogTool(name, args) {
         default_value: args.default_value || "",
         help_text:     args.help_text || "",
         reference:     args.reference_table || "",
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -155,7 +160,7 @@ export async function handleCatalogTool(name, args) {
       if (args.order         !== undefined) payload.order         = args.order;
       if (args.default_value !== undefined) payload.default_value = args.default_value;
       if (args.help_text     !== undefined) payload.help_text     = args.help_text;
-      const data = await snPatch(`/api/now/table/item_option_new/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/item_option_new/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, updated: Object.keys(payload) };
     }
 
@@ -166,7 +171,7 @@ export async function handleCatalogTool(name, args) {
         sc_catalog:  args.catalog || "",
         active:      args.active !== false,
         order:       args.order || 100,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, title: data.result.title };
     }
 

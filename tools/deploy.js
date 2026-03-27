@@ -1,4 +1,4 @@
-import { snGet, snPost, snPatch, SN_USER } from "../lib/client.js";
+import { snGet, snPost, snPatch, getEnvUser } from "../lib/client.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Deploy (Update Sets)
@@ -11,6 +11,7 @@ export const deployTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:        { type: "string" },
         description: { type: "string" },
       },
@@ -23,6 +24,7 @@ export const deployTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id: { type: "string" },
       },
       required: ["sys_id"],
@@ -34,6 +36,7 @@ export const deployTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:   { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         state: { type: "string", enum: ["in progress", "complete", "ignore"], description: "Filtrar por estado (opcional)" },
         limit: { type: "number" },
       },
@@ -45,6 +48,7 @@ export const deployTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id: { type: "string" },
       },
       required: ["sys_id"],
@@ -64,7 +68,7 @@ export async function handleDeployTool(name, args) {
         name:        args.name,
         description: args.description || "",
         state:       "in progress",
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -72,8 +76,8 @@ export async function handleDeployTool(name, args) {
       await snPost("/api/now/table/sys_user_preference", {
         name:  "sys_update_set",
         value: args.sys_id,
-        user:  SN_USER,
-      });
+        user:  getEnvUser(args.env),
+      }, args.env);
       return { message: "Update Set definido como atual", sys_id: args.sys_id };
     }
 
@@ -85,14 +89,14 @@ export async function handleDeployTool(name, args) {
         sysparm_limit:  args.limit || 20,
         sysparm_orderby: "sys_created_on",
         sysparm_orderby_direction: "desc",
-      });
+      }, args.env);
       return data.result;
     }
 
     case "sn_complete_update_set": {
       const data = await snPatch(`/api/now/table/sys_update_set/${args.sys_id}`, {
         state: "complete",
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, state: data.result.state };
     }
 

@@ -11,6 +11,7 @@ export const flowTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:   { type: "string", description: "Busca parcial por nome" },
         sys_id: { type: "string" },
       },
@@ -22,6 +23,7 @@ export const flowTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id: { type: "string" },
         active: { type: "boolean" },
       },
@@ -34,6 +36,7 @@ export const flowTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:           { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         flow_sys_id:   { type: "string" },
         inputs:        { type: "object", description: "Inputs do flow (chave/valor)" },
         table:         { type: "string", description: "Tabela do registro alvo (trigger de record)" },
@@ -48,6 +51,7 @@ export const flowTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         flow_sys_id: { type: "string" },
         limit:       { type: "number" },
         status:      { type: "string", enum: ["complete", "error", "running", "cancelled"] },
@@ -61,6 +65,7 @@ export const flowTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:        { type: "string" },
         description: { type: "string" },
         category:    { type: "string" },
@@ -75,6 +80,7 @@ export const flowTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:        { type: "string" },
         description: { type: "string" },
         script:      { type: "string" },
@@ -94,19 +100,19 @@ export async function handleFlowTool(name, args) {
 
     case "sn_get_flow": {
       if (args.sys_id) {
-        const data = await snGet(`/api/now/table/sys_hub_flow/${args.sys_id}`);
+        const data = await snGet(`/api/now/table/sys_hub_flow/${args.sys_id}`, {}, args.env);
         return data.result;
       }
       const data = await snGet("/api/now/table/sys_hub_flow", {
         sysparm_query:  `nameLIKE${args.name || ""}`,
         sysparm_fields: "sys_id,name,description,active,sys_scope,trigger_type",
         sysparm_limit:  10,
-      });
+      }, args.env);
       return data.result;
     }
 
     case "sn_activate_flow": {
-      const data = await snPatch(`/api/now/table/sys_hub_flow/${args.sys_id}`, { active: args.active });
+      const data = await snPatch(`/api/now/table/sys_hub_flow/${args.sys_id}`, { active: args.active }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, active: data.result.active };
     }
 
@@ -116,7 +122,7 @@ export async function handleFlowTool(name, args) {
         body.inputs.table  = args.table;
         body.inputs.sys_id = args.record_sys_id;
       }
-      const data = await snPost(`/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`, body);
+      const data = await snPost(`/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`, body, args.env);
       return data.result || data;
     }
 
@@ -127,7 +133,7 @@ export async function handleFlowTool(name, args) {
         sysparm_fields:            "sys_id,flow,status,start_time,end_time,error",
         sysparm_orderby:           "sys_created_on",
         sysparm_orderby_direction: "desc",
-      });
+      }, args.env);
       return data.result;
     }
 
@@ -138,7 +144,7 @@ export async function handleFlowTool(name, args) {
         active:      args.active !== false,
         flow_type:   "subflow",
         category:    args.category || "",
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -148,7 +154,7 @@ export async function handleFlowTool(name, args) {
         description: args.description || "",
         script:      args.script,
         active:      args.active !== false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 

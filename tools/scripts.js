@@ -1,4 +1,4 @@
-import { snGet, snPost, snPatch } from "../lib/client.js";
+import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Scripts Server-Side
@@ -11,6 +11,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table:  { type: "string" },
         query:  { type: "string", description: "Encoded query (ex: active=true^priority=1)" },
         fields: { type: "string", description: "Campos separados por vírgula" },
@@ -25,6 +26,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table:  { type: "string" },
         sys_id: { type: "string" },
       },
@@ -37,6 +39,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:      { type: "string" },
         table:     { type: "string" },
         when:      { type: "string", enum: ["before", "after", "async", "display"] },
@@ -55,6 +58,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:    { type: "string" },
         name:      { type: "string" },
         script:    { type: "string" },
@@ -73,6 +77,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:            { type: "string" },
         script:          { type: "string" },
         description:     { type: "string" },
@@ -88,6 +93,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:          { type: "string" },
         script:          { type: "string" },
         description:     { type: "string" },
@@ -103,6 +109,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:   { type: "string" },
         table:  { type: "string" },
         type:   { type: "string", enum: ["onLoad", "onChange", "onSubmit", "onCellEdit"] },
@@ -119,6 +126,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id: { type: "string" },
         script: { type: "string" },
         type:   { type: "string", enum: ["onLoad", "onChange", "onSubmit", "onCellEdit"] },
@@ -134,6 +142,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:      { type: "string" },
         table:     { type: "string" },
         condition: { type: "string" },
@@ -149,6 +158,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:    { type: "string" },
         condition: { type: "string" },
         script:    { type: "string" },
@@ -163,6 +173,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:     { type: "string" },
         script:   { type: "string" },
         run_type: { type: "string", enum: ["daily", "weekly", "monthly", "periodically", "once"] },
@@ -177,6 +188,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:   { type: "string" },
         script:   { type: "string" },
         run_type: { type: "string", enum: ["daily", "weekly", "monthly", "periodically", "once"] },
@@ -191,6 +203,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         script: { type: "string" },
         scope:  { type: "string" },
       },
@@ -203,6 +216,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table:      { type: "string" },
         label:      { type: "string" },
         name:       { type: "string" },
@@ -219,6 +233,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         label:         { type: "string" },
         name:          { type: "string" },
         extends_table: { type: "string" },
@@ -232,6 +247,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table: { type: "string" },
         data:  { type: "object" },
       },
@@ -244,6 +260,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table:  { type: "string" },
         sys_id: { type: "string" },
         data:   { type: "object" },
@@ -257,6 +274,7 @@ export const scriptTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table:  { type: "string" },
         sys_id: { type: "string" },
       },
@@ -277,12 +295,12 @@ export async function handleScriptTool(name, args) {
         sysparm_limit: args.limit || 10,
         ...(args.query  && { sysparm_query: args.query }),
         ...(args.fields && { sysparm_fields: args.fields }),
-      });
+      }, args.env);
       return data.result;
     }
 
     case "sn_get_record": {
-      const data = await snGet(`/api/now/table/${args.table}/${args.sys_id}`);
+      const data = await snGet(`/api/now/table/${args.table}/${args.sys_id}`, {}, args.env);
       return data.result;
     }
 
@@ -299,7 +317,7 @@ export async function handleScriptTool(name, args) {
         active:         args.active !== false,
         order:          args.order || 100,
         ...(args.condition && { condition: args.condition }),
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -317,7 +335,7 @@ export async function handleScriptTool(name, args) {
         payload.action_delete = args.action.includes("delete");
         payload.action_query  = args.action.includes("query");
       }
-      const data = await snPatch(`/api/now/table/sys_script/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sys_script/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
@@ -329,7 +347,7 @@ export async function handleScriptTool(name, args) {
         active:          args.active !== false,
         client_callable: args.client_callable || false,
         api_name:        args.name,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -339,7 +357,7 @@ export async function handleScriptTool(name, args) {
       if (args.description     !== undefined) payload.description     = args.description;
       if (args.active          !== undefined) payload.active          = args.active;
       if (args.client_callable !== undefined) payload.client_callable = args.client_callable;
-      const data = await snPatch(`/api/now/table/sys_script_include/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sys_script_include/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
@@ -351,7 +369,7 @@ export async function handleScriptTool(name, args) {
         script:     args.script,
         field_name: args.field || "",
         active:     args.active !== false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -361,7 +379,7 @@ export async function handleScriptTool(name, args) {
       if (args.type   !== undefined) payload.type       = args.type;
       if (args.field  !== undefined) payload.field_name = args.field;
       if (args.active !== undefined) payload.active     = args.active;
-      const data = await snPatch(`/api/now/table/sys_script_client/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sys_script_client/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
@@ -372,7 +390,7 @@ export async function handleScriptTool(name, args) {
         conditions:        args.condition || "",
         script:            args.script || "",
         active:            args.active !== false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id };
     }
 
@@ -381,7 +399,7 @@ export async function handleScriptTool(name, args) {
       if (args.condition !== undefined) payload.conditions = args.condition;
       if (args.script    !== undefined) payload.script     = args.script;
       if (args.active    !== undefined) payload.active     = args.active;
-      const data = await snPatch(`/api/now/table/sys_ui_policy/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sys_ui_policy/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, updated: Object.keys(payload) };
     }
 
@@ -391,7 +409,7 @@ export async function handleScriptTool(name, args) {
         script:   args.script,
         run_type: args.run_type,
         active:   args.active !== false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -400,7 +418,7 @@ export async function handleScriptTool(name, args) {
       if (args.script   !== undefined) payload.script   = args.script;
       if (args.run_type !== undefined) payload.run_type = args.run_type;
       if (args.active   !== undefined) payload.active   = args.active;
-      const data = await snPatch(`/api/now/table/sysauto_script/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sysauto_script/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
@@ -408,7 +426,7 @@ export async function handleScriptTool(name, args) {
       const data = await snPost("/api/x_dev_agent/script_runner/execute", {
         script: args.script,
         scope:  args.scope || "global",
-      });
+      }, args.env);
       return data.result;
     }
 
@@ -420,7 +438,7 @@ export async function handleScriptTool(name, args) {
         internal_type: args.type,
         max_length:    args.max_length || 255,
         mandatory:     args.mandatory || false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, element: data.result.element };
     }
 
@@ -429,26 +447,22 @@ export async function handleScriptTool(name, args) {
         label:       args.label,
         name:        args.name,
         super_class: args.extends_table || "",
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
     case "sn_create_record": {
-      const data = await snPost(`/api/now/table/${args.table}`, args.data);
+      const data = await snPost(`/api/now/table/${args.table}`, args.data, args.env);
       return data.result;
     }
 
     case "sn_update_record": {
-      const data = await snPatch(`/api/now/table/${args.table}/${args.sys_id}`, args.data);
+      const data = await snPatch(`/api/now/table/${args.table}/${args.sys_id}`, args.data, args.env);
       return data.result;
     }
 
     case "sn_delete_record": {
-      const res = await fetch(`${process.env.SN_INSTANCE}/api/now/table/${args.table}/${args.sys_id}`, {
-        method: "DELETE",
-        headers: { Authorization: "Basic " + Buffer.from(`${process.env.SN_USER}:${process.env.SN_PASSWORD}`).toString("base64") },
-      });
-      if (!res.ok) throw new Error(`DELETE → ${res.status}`);
+      const result = await snDelete(`/api/now/table/${args.table}/${args.sys_id}`, args.env);
       return { deleted: true, table: args.table, sys_id: args.sys_id };
     }
 

@@ -11,6 +11,7 @@ export const aclTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:      { type: "string", description: "Nome da ACL (ex: incident.caller_id)" },
         type:      { type: "string", enum: ["record", "client_callable_script_include", "soap", "rest"] },
         operation: { type: "string", enum: ["read", "write", "create", "delete", "execute"] },
@@ -30,6 +31,7 @@ export const aclTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:    { type: "string" },
         role:      { type: "string" },
         script:    { type: "string" },
@@ -45,6 +47,7 @@ export const aclTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id: { type: "string" },
       },
       required: ["sys_id"],
@@ -56,6 +59,7 @@ export const aclTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table:     { type: "string" },
         field:     { type: "string" },
         operation: { type: "string", enum: ["read", "write", "create", "delete", "execute"] },
@@ -70,6 +74,7 @@ export const aclTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         acl_sys_id: { type: "string" },
         role_name:  { type: "string" },
       },
@@ -82,6 +87,7 @@ export const aclTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         acl_sys_id: { type: "string" },
         role_name:  { type: "string" },
       },
@@ -101,6 +107,7 @@ export const notificationTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:           { type: "string" },
         table:          { type: "string", description: "Tabela que dispara a notificação (ex: incident)" },
         subject:        { type: "string", description: "Assunto do email" },
@@ -120,6 +127,7 @@ export const notificationTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id:    { type: "string" },
         subject:   { type: "string" },
         body_html: { type: "string" },
@@ -135,6 +143,7 @@ export const notificationTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table: { type: "string" },
         limit: { type: "number" },
       },
@@ -154,6 +163,7 @@ export const roleTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         name:        { type: "string", description: "Nome técnico da role (ex: x_app.manager)" },
         description: { type: "string" },
         suffix:      { type: "string", description: "Sufixo da role (para scoped apps)" },
@@ -167,6 +177,7 @@ export const roleTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         group_name: { type: "string", description: "Nome do grupo (ex: Service Desk)" },
         user_name:  { type: "string", description: "Username do usuário" },
       },
@@ -179,6 +190,7 @@ export const roleTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         group_name: { type: "string" },
         user_name:  { type: "string" },
       },
@@ -191,6 +203,7 @@ export const roleTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         user_name: { type: "string" },
         role_name: { type: "string" },
       },
@@ -203,6 +216,7 @@ export const roleTools = [
     inputSchema: {
       type: "object",
       properties: {
+        env:       { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         group_name: { type: "string" },
       },
       required: ["group_name"],
@@ -228,7 +242,7 @@ export async function handleAclTool(name, args) {
         object:    args.table || "",
         field:     args.field || "",
         active:    args.active !== false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -238,12 +252,12 @@ export async function handleAclTool(name, args) {
       if (args.script    !== undefined) payload.script    = args.script;
       if (args.condition !== undefined) payload.condition = args.condition;
       if (args.active    !== undefined) payload.active    = args.active;
-      const data = await snPatch(`/api/now/table/sys_security_acl/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sys_security_acl/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
     case "sn_delete_acl": {
-      const result = await snDelete(`/api/now/table/sys_security_acl/${args.sys_id}`);
+      const result = await snDelete(`/api/now/table/sys_security_acl/${args.sys_id}`, args.env);
       return { ...result, sys_id: args.sys_id };
     }
 
@@ -255,7 +269,7 @@ export async function handleAclTool(name, args) {
         sysparm_query:  query,
         sysparm_fields: "sys_id,name,type,operation,role,active,object,field",
         sysparm_limit:  args.limit || 50,
-      });
+      }, args.env);
       return data.result;
     }
 
@@ -264,12 +278,12 @@ export async function handleAclTool(name, args) {
         sysparm_query:  `name=${args.role_name}`,
         sysparm_fields: "sys_id,name",
         sysparm_limit:  1,
-      });
+      }, args.env);
       if (!roleData.result?.length) throw new Error(`Role '${args.role_name}' não encontrada`);
       const data = await snPost("/api/now/table/sys_security_acl_role", {
         sys_security_acl: args.acl_sys_id,
         sys_user_role:    roleData.result[0].sys_id,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, role: args.role_name, acl: args.acl_sys_id };
     }
 
@@ -278,14 +292,14 @@ export async function handleAclTool(name, args) {
         sysparm_query:  `name=${args.role_name}`,
         sysparm_fields: "sys_id",
         sysparm_limit:  1,
-      });
+      }, args.env);
       if (!roleData.result?.length) throw new Error(`Role '${args.role_name}' não encontrada`);
       const relData = await snGet("/api/now/table/sys_security_acl_role", {
         sysparm_query: `sys_security_acl=${args.acl_sys_id}^sys_user_role=${roleData.result[0].sys_id}`,
         sysparm_limit: 1,
-      });
+      }, args.env);
       if (!relData.result?.length) throw new Error(`Role '${args.role_name}' não está associada a esta ACL`);
-      const result = await snDelete(`/api/now/table/sys_security_acl_role/${relData.result[0].sys_id}`);
+      const result = await snDelete(`/api/now/table/sys_security_acl_role/${relData.result[0].sys_id}`, args.env);
       return { ...result, role: args.role_name, acl: args.acl_sys_id };
     }
 
@@ -311,7 +325,7 @@ export async function handleNotificationTool(name, args) {
         recipient_users:       args.recipients || "",
         send_self:             args.send_to_event || false,
         active:                args.active !== false,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
@@ -321,7 +335,7 @@ export async function handleNotificationTool(name, args) {
       if (args.body_html !== undefined) payload.message_html = args.body_html;
       if (args.condition !== undefined) payload.condition    = args.condition;
       if (args.active    !== undefined) payload.active       = args.active;
-      const data = await snPatch(`/api/now/table/sysevent_email_action/${args.sys_id}`, payload);
+      const data = await snPatch(`/api/now/table/sysevent_email_action/${args.sys_id}`, payload, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, updated: Object.keys(payload) };
     }
 
@@ -330,7 +344,7 @@ export async function handleNotificationTool(name, args) {
         sysparm_query:  `collection=${args.table}`,
         sysparm_fields: "sys_id,name,subject,active,event_name",
         sysparm_limit:  args.limit || 20,
-      });
+      }, args.env);
       return data.result;
     }
 
@@ -350,76 +364,74 @@ export async function handleRoleTool(name, args) {
         name:        args.name,
         description: args.description || "",
         suffix:      args.suffix || args.name,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name };
     }
 
     case "sn_add_user_to_group": {
-      // Busca o grupo
       const groupData = await snGet("/api/now/table/sys_user_group", {
         sysparm_query:  `name=${args.group_name}`,
         sysparm_fields: "sys_id",
         sysparm_limit:  1,
-      });
+      }, args.env);
       if (!groupData.result?.length) throw new Error(`Grupo '${args.group_name}' não encontrado`);
-      // Busca o usuário
       const userData = await snGet("/api/now/table/sys_user", {
         sysparm_query:  `user_name=${args.user_name}`,
         sysparm_fields: "sys_id",
         sysparm_limit:  1,
-      });
+      }, args.env);
       if (!userData.result?.length) throw new Error(`Usuário '${args.user_name}' não encontrado`);
       const data = await snPost("/api/now/table/sys_user_grmember", {
         group: groupData.result[0].sys_id,
         user:  userData.result[0].sys_id,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, user: args.user_name, group: args.group_name };
     }
 
     case "sn_remove_user_from_group": {
       const groupData = await snGet("/api/now/table/sys_user_group", {
         sysparm_query: `name=${args.group_name}`, sysparm_fields: "sys_id", sysparm_limit: 1,
-      });
+      }, args.env);
       if (!groupData.result?.length) throw new Error(`Grupo '${args.group_name}' não encontrado`);
       const userData = await snGet("/api/now/table/sys_user", {
         sysparm_query: `user_name=${args.user_name}`, sysparm_fields: "sys_id", sysparm_limit: 1,
-      });
+      }, args.env);
       if (!userData.result?.length) throw new Error(`Usuário '${args.user_name}' não encontrado`);
       const relData = await snGet("/api/now/table/sys_user_grmember", {
         sysparm_query: `group=${groupData.result[0].sys_id}^user=${userData.result[0].sys_id}`,
         sysparm_limit: 1,
-      });
+      }, args.env);
       if (!relData.result?.length) throw new Error(`Usuário não é membro do grupo`);
-      const result = await snDelete(`/api/now/table/sys_user_grmember/${relData.result[0].sys_id}`);
+      const result = await snDelete(`/api/now/table/sys_user_grmember/${relData.result[0].sys_id}`, args.env);
       return { ...result, user: args.user_name, group: args.group_name };
     }
 
     case "sn_assign_role_to_user": {
       const userData = await snGet("/api/now/table/sys_user", {
         sysparm_query: `user_name=${args.user_name}`, sysparm_fields: "sys_id", sysparm_limit: 1,
-      });
+      }, args.env);
       if (!userData.result?.length) throw new Error(`Usuário '${args.user_name}' não encontrado`);
       const roleData = await snGet("/api/now/table/sys_user_role", {
         sysparm_query: `name=${args.role_name}`, sysparm_fields: "sys_id", sysparm_limit: 1,
-      });
+      }, args.env);
       if (!roleData.result?.length) throw new Error(`Role '${args.role_name}' não encontrada`);
       const data = await snPost("/api/now/table/sys_user_has_role", {
         user: userData.result[0].sys_id,
         role: roleData.result[0].sys_id,
-      });
+      }, args.env);
       return { sys_id: data.result.sys_id, user: args.user_name, role: args.role_name };
     }
 
     case "sn_list_group_members": {
       const groupData = await snGet("/api/now/table/sys_user_group", {
         sysparm_query: `name=${args.group_name}`, sysparm_fields: "sys_id", sysparm_limit: 1,
-      });
+      }, args.env);
       if (!groupData.result?.length) throw new Error(`Grupo '${args.group_name}' não encontrado`);
       const data = await snGet("/api/now/table/sys_user_grmember", {
         sysparm_query:  `group=${groupData.result[0].sys_id}`,
         sysparm_fields: "user.user_name,user.name,user.email,sys_id",
         sysparm_limit:  100,
-      });
+      }, args.env);
       return data.result;
     }
 

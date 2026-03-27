@@ -23,6 +23,27 @@ node index.js          # ServiceNow MCP Server v2.0.0 rodando — 50 ferramentas
 
 ---
 
+## 🌐 Múltiplas Instâncias Dinâmicas (Multi-Tenant)
+
+O servidor possui suporte nativo para conectar em múltiplas instâncias do ServiceNow simultaneamente de modo que as ferramentas rodam e se roteiam baseadas num prefixo pré-configurado sem exigir novos processos por cliente.
+
+**Exemplo no seu arquivo `.env`:**
+```env
+# Conexão Padrão (Fallback)
+SN_INSTANCE=https://seu-dominio.service-now.com
+SN_USER=admin
+SN_PASSWORD=sua-senha
+
+# Instância de Desenvolvimento ("DEV") de outro cliente/serviço
+DEV_SN_INSTANCE=https://dev-cliente.service-now.com
+DEV_SN_USER=admin
+DEV_SN_PASSWORD=dev-senha
+```
+
+Basta que a IA envie para as `tools` a string `"env" : "DEV"` para que a requisição ocorra autenticada na instância `DEV`, sem necessidade de intervenção.
+
+---
+
 ## ⚙️ Configuração por ambiente
 
 ### 🟣 Claude Desktop

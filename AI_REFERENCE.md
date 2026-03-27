@@ -60,8 +60,9 @@ O servidor possui quase 50 ferramentas diferentes. **Regra de ouro para a IA:** 
 4. **Tratamento de Erros:**
    Exceções disparadas no HTTP client geram trace de stack com o `res.status` e `res.text()`. Analise esse feedback detalhadamente; requisições 403 geralmente indicam permissão insuficiente. O executor `x_dev_agent` falha com 403 caso o usuário não tenha a role "admin".
 
-5. **Lógica de Autenticação não deve ser modificada nas chamadas de Tool:**
-   O Servidor usa as ENV vars `SN_INSTANCE`, `SN_USER` e `SN_PASSWORD`. Elas fluem do cliente MCP direto para o processo Node, logo, não é necessário enviar credenciais nos argumentos das ferramentas.
+5. **Suporte a Múltiplas Instâncias (Parâmetro `env`):**
+   Todas as ferramentas recebem um parâmetro opcional chamado `env`. O servidor usa as variáveis padrão `SN_INSTANCE`, `SN_USER` e `SN_PASSWORD`. 
+   Entretanto, se a IA identificar que o usuário quer rodar um comando no "DEV" ou "TEST" (ex: múltiplas instâncias cliente), ela pode passar `"env": "DEV"`. O servidor injetará os prefixos automaticamente (`DEV_SN_INSTANCE`, `DEV_SN_USER`, etc). Isso faz com que você consiga operar simultaneamente em dezenas de instâncias com apenas um processo Node! Nunca modifique as credenciais diretamente, use `env`.
 
 ---
 *Lembre-se: Antes de atuar ativamente num ambiente do usuário, valide a estabilidade dos registros (test-reads). Use as ferramentas específicas e leia os `sys_id`s reais do servidor!*
