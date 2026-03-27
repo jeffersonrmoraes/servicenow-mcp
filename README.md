@@ -18,7 +18,7 @@ git clone https://github.com/jeffersonrmoraes/servicenow-mcp.git
 cd servicenow-mcp
 npm install
 cp .env.example .env   # preencha com suas credenciais
-node index.js          # ServiceNow MCP Server v1.3.0 rodando...
+node index.js          # ServiceNow MCP Server v2.0.0 rodando — 50 ferramentas ativas
 ```
 
 ---
@@ -69,7 +69,7 @@ Crie `.vscode/mcp.json` na raiz do projeto:
 
 No painel do Copilot Chat, troque para o modo **Agent**.
 
-### 🟡 Google Agentspace
+### 🟡 Google Agentspace (Antigravity)
 
 1. Abra uma sessão de Agent
 2. Clique em **"..." → MCP Servers → Manage MCP Servers → View raw config**
@@ -78,7 +78,26 @@ No painel do Copilot Chat, troque para o modo **Agent**.
 
 ---
 
-## 🛠️ Ferramentas disponíveis (36 total)
+## 🗂️ Estrutura do projeto
+
+```
+servicenow-mcp/
+├── index.js          ← orquestrador (< 60 linhas)
+├── lib/
+│   └── client.js     ← HTTP client (snGet, snPost, snPatch, snDelete)
+├── tools/
+│   ├── scripts.js    ← Business Rules, Script Includes, Client Scripts, UI Policies, Scheduled Jobs, CRUD
+│   ├── catalog.js    ← Service Catalog (itens, variáveis, categorias)
+│   ├── flow.js       ← Flow Designer (flows, subflows, actions, execuções)
+│   ├── security.js   ← ACLs + Notifications + Roles e Grupos
+│   └── deploy.js     ← Update Sets
+├── .env.example
+└── package.json
+```
+
+---
+
+## 🛠️ Ferramentas disponíveis (~50 total)
 
 ### 🔍 Leitura e Consulta
 | Ferramenta | Descrição |
@@ -95,6 +114,7 @@ No painel do Copilot Chat, troque para o modo **Agent**.
 | `sn_update_script_include` | Atualiza script, descrição e client_callable |
 | `sn_create_scheduled_job` | Cria Scheduled Script Execution |
 | `sn_update_scheduled_job` | Atualiza script e frequência |
+| `sn_execute_script` | Executa script em background* |
 
 ### 🖥️ Interface / UX
 | Ferramenta | Descrição |
@@ -133,30 +153,44 @@ No painel do Copilot Chat, troque para o modo **Agent**.
 | `sn_add_role_to_acl` | Adiciona uma role a uma ACL existente |
 | `sn_remove_role_from_acl` | Remove uma role de uma ACL existente |
 
+### 📧 Notifications
+| Ferramenta | Descrição |
+|---|---|
+| `sn_create_notification` | Cria notificação de email com subject, body HTML e condição |
+| `sn_update_notification` | Atualiza subject, body e status |
+| `sn_list_notifications` | Lista notificações de uma tabela |
+
+### 👥 Roles e Grupos
+| Ferramenta | Descrição |
+|---|---|
+| `sn_create_role` | Cria nova role |
+| `sn_add_user_to_group` | Adiciona usuário a um grupo (resolve nomes automaticamente) |
+| `sn_remove_user_from_group` | Remove usuário de um grupo |
+| `sn_assign_role_to_user` | Atribui role a um usuário |
+| `sn_list_group_members` | Lista membros de um grupo |
+
 ### 🗄️ Estrutura de Dados
 | Ferramenta | Descrição |
 |---|---|
 | `sn_create_field` | Cria campo customizado em uma tabela |
 | `sn_create_table` | Cria tabela customizada com herança |
 
-### 🧪 Execução e Testes
-| Ferramenta | Descrição |
-|---|---|
-| `sn_execute_script` | Executa script em background* |
-
 ### 📦 Deploy
 | Ferramenta | Descrição |
 |---|---|
 | `sn_create_update_set` | Cria Update Set para empacotar mudanças |
 | `sn_set_current_update_set` | Define o Update Set ativo |
+| `sn_list_update_sets` | Lista Update Sets com filtro por estado |
+| `sn_complete_update_set` | Marca Update Set como completo |
 
 ### 🔧 Genérico
 | Ferramenta | Descrição |
 |---|---|
 | `sn_create_record` | Cria registro em qualquer tabela |
 | `sn_update_record` | Atualiza qualquer registro pelo sys_id |
+| `sn_delete_record` | Remove qualquer registro pelo sys_id |
 
-> *`sn_execute_script` requer um Scripted REST API configurado. Veja a seção abaixo.
+> *`sn_execute_script` requer um Scripted REST API configurado na instância. Veja a seção abaixo.
 
 ---
 
@@ -199,14 +233,16 @@ sistema (Select), justificativa (MultiLine) e data de início (Date)."
 
 "Liste todas as ACLs de leitura da tabela incident e mostre quais roles têm acesso."
 
-"Crie uma ACL que restrinja a escrita no campo salary da tabela hr_profile
-apenas para usuários com a role hr_admin."
+"Crie uma notificação de email para a tabela change_request que dispara
+quando uma mudança é aprovada, enviando um resumo em HTML para o solicitante."
+
+"Adicione o usuário john.doe ao grupo 'Service Desk' e atribua a ele a role itil."
 
 "Busque o flow 'Onboarding de Funcionário', dispare-o para o registro
-de ID xyz e liste as últimas 5 execuções."
+xyz e liste as últimas 5 execuções com erro."
 
-"Crie um Update Set 'Sprint-42', defina como ativo e adicione uma nova
-Business Rule de validação na tabela change_request."
+"Crie um Update Set 'Sprint-42', defina como ativo, adicione uma Business Rule
+e marque como completo ao terminar."
 ```
 
 ---
@@ -228,3 +264,4 @@ Business Rule de validação na tabela change_request."
 | v1.1.0 | Atualização de Script Include, Client Script, UI Policy, Scheduled Job |
 | v1.2.0 | Service Catalog + Flow Designer (11 ferramentas) |
 | v1.3.0 | ACLs e Segurança — create, update, delete, list, add/remove roles (6 ferramentas) |
+| v2.0.0 | Refatoração modular + Notifications + Roles/Grupos + Deploy melhorado + sn_delete_record (~50 ferramentas) |
