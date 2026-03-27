@@ -11,10 +11,10 @@
         <header>
             <div>
                 <h1>ServiceNow <span>MCP</span></h1>
-                <p style="color:var(--tech-text-dim); font-size: 0.9rem;">Visual Command Center v3.6.0</p>
+                <p style="color:var(--tech-text-dim); font-size: 0.9rem;">Visual Command Center v3.7.0</p>
             </div>
             <div class="server-status">
-                🟢 SYSTEM_ONLINE-3.6.0 // BUNDLE_ENABLED
+                🟢 SYSTEM_ONLINE-3.7.0 // HYBRID_AUTH_READY
             </div>
         </header>
 
@@ -57,7 +57,16 @@
                 <h2 id="modal-title" style="margin-bottom: 0;">GERENCIAR_INSTÂNCIA</h2>
                 <button class="close-btn" id="close-modal" style="color:var(--tech-text-dim)">×</button>
             </div>
+
+            <!-- SELETOR DE MÉTODO -->
+            <div class="auth-method-selector" style="display: flex; gap: 10px; margin: 20px 0;">
+                <button type="button" class="btn-tech auth-tab active" data-method="basic" style="flex: 1;">BASIC_AUTH</button>
+                <button type="button" class="btn-tech auth-tab" data-method="oauth" style="flex: 1;">OAUTH_2.0</button>
+            </div>
+
             <form id="instance-form">
+                <input type="hidden" id="auth-method" value="basic">
+                
                 <div class="input-group">
                     <label>AMB_PREFIX (Ex: PDI, DEV)</label>
                     <input type="text" id="inst-prefix" class="input-tech" placeholder="PDI" required>
@@ -66,14 +75,33 @@
                     <label>SYS_INSTANCE (PDI NAME)</label>
                     <input type="text" id="inst-name" class="input-tech" placeholder="dev12345" required>
                 </div>
-                <div class="input-group">
-                    <label>ADMIN_USER</label>
-                    <input type="text" id="inst-user" class="input-tech" value="admin" required>
+
+                <!-- CAMPOS BASIC -->
+                <div id="section-basic">
+                    <div class="input-group">
+                        <label>ADMIN_USER</label>
+                        <input type="text" id="inst-user" class="input-tech" value="admin">
+                    </div>
+                    <div class="input-group">
+                        <label>PASS_KEY (TOKEN)</label>
+                        <input type="password" id="inst-password" class="input-tech">
+                    </div>
                 </div>
-                <div class="input-group">
-                    <label>PASS_KEY (TOKEN)</label>
-                    <input type="password" id="inst-password" class="input-tech" required>
+
+                <!-- CAMPOS OAUTH -->
+                <div id="section-oauth" style="display: none;">
+                    <div class="input-group">
+                        <label>CLIENT_ID</label>
+                        <input type="text" id="inst-client-id" class="input-tech">
+                    </div>
+                    <div class="input-group">
+                        <label>CLIENT_SECRET</label>
+                        <input type="password" id="inst-client-secret" class="input-tech">
+                    </div>
+                    <button type="button" id="authorize-btn" class="btn-tech" style="width: 100%; margin-top: 15px; border-color: #FFD700; color: #FFD700;">[🔓] AUTHORIZE_VIA_BROWSER</button>
+                    <div id="oauth-status" style="font-size: 0.7rem; color: var(--tech-text-dim); margin-top: 5px; text-align: center;">Aguardando autorização...</div>
                 </div>
+
                 <div class="modal-actions" style="margin-top: 30px;">
                     <button type="submit" class="btn-tech primary" style="flex: 2;">SAVE_CHANGES</button>
                     <button type="button" class="btn-tech danger" id="delete-inst-btn" style="flex: 1;">REMOVE</button>

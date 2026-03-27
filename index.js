@@ -49,7 +49,7 @@ const HANDLERS = [
 //  Server Definition
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-mcp-server", version: "3.6.0" },
+  { name: "servicenow-mcp-server", version: "3.7.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -84,4 +84,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error(`ServiceNow MCP Server v3.6.0 rodando — ${ALL_TOOLS.length} ferramentas consolidadas`);
+console.error(`ServiceNow MCP Server v3.7.0 rodando — ${ALL_TOOLS.length} ferramentas consolidadas`);

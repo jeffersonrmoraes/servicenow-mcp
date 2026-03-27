@@ -216,6 +216,20 @@ textarea.tech-editor:focus {
   box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
 }
 
+/* AUTH TABS */
+.auth-method-selector .btn-tech {
+    opacity: 0.5;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--tech-text-dim);
+}
+
+.auth-method-selector .btn-tech.active {
+    opacity: 1;
+    border-color: var(--tech-accent);
+    color: var(--tech-accent);
+    background: rgba(0, 242, 255, 0.1);
+}
+
 /* MODAL TECH v3.4.0 */
 .modal-overlay {
   position: fixed;

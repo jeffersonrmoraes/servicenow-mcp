@@ -11,11 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const instanceForm = document.getElementById('instance-form');
     const deleteInstBtn = document.getElementById('delete-inst-btn');
     
-    // Form Inputs
-    const instPrefix = document.getElementById('inst-prefix');
-    const instName = document.getElementById('inst-name');
-    const instUser = document.getElementById('inst-user');
     const instPass = document.getElementById('inst-password');
+    const authMethod = document.getElementById('auth-method');
+    const instClientId = document.getElementById('inst-client-id');
+    const instClientSecret = document.getElementById('inst-client-secret');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const sectionBasic = document.getElementById('section-basic');
+    const sectionOauth = document.getElementById('section-oauth');
+    const authorizeBtn = document.getElementById('authorize-btn');
+    const oauthStatus = document.getElementById('oauth-status');
 
     let currentConfig = {};
     let isMasked = true; // Privacidade em primeiro lugar por padrão
@@ -42,10 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (key.endsWith('SN_INSTANCE')) {
                 const prefix = key.replace('SN_INSTANCE', '').replace('_', '') || 'Main';
+                const p = prefix === 'Main' ? '' : prefix + '_';
+                const isOAuth = !!currentConfig[`${p}SN_OAUTH_ACCESS_TOKEN`];
                 instances.push({
                     prefix,
                     instance: value,
-                    user: currentConfig[`${prefix === 'Main' ? '' : prefix + '_'}SN_USER`] || 'Não configurado'
+                    user: isOAuth ? '🔐 OAuth 2.0' : (currentConfig[`${p}SN_USER`] || 'Não configurado')
                 });
             }
         });
@@ -96,8 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─────────────────────────────────────────────
 
     window.editInstance = (prefix) => {
-        const isMain = prefix === 'Main';
-        const p = isMain ? '' : prefix + '_';
+        const p = prefix === 'Main' ? '' : prefix + '_';
         
         instPrefix.value = prefix;
         instPrefix.disabled = true;
@@ -105,9 +110,57 @@ document.addEventListener('DOMContentLoaded', () => {
         instUser.value = currentConfig[`${p}SN_USER`] || 'admin';
         instPass.value = currentConfig[`${p}SN_PASSWORD`] || '';
         
+        // OAuth Fields
+        instClientId.value = currentConfig[`${p}SN_CLIENT_ID`] || '';
+        instClientSecret.value = currentConfig[`${p}SN_CLIENT_SECRET`] || '';
+        
+        // Detectar método e trocar tab
+        if (currentConfig[`${p}SN_OAUTH_ACCESS_TOKEN`] || currentConfig[`${p}SN_CLIENT_ID`]) {
+            switchTab('oauth');
+        } else {
+            switchTab('basic');
+        }
+
         deleteInstBtn.style.display = 'block';
         modal.classList.add('active');
     };
+
+    function switchTab(method) {
+        authMethod.value = method;
+        authTabs.forEach(t => {
+            t.classList.toggle('active', t.dataset.method === method);
+        });
+        sectionBasic.style.display = method === 'basic' ? 'block' : 'none';
+        sectionOauth.style.display = method === 'oauth' ? 'block' : 'none';
+    }
+
+    authTabs.forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.method));
+    });
+
+    authorizeBtn.addEventListener('click', () => {
+        const prefix = instPrefix.value || 'Main';
+        const instance = instName.value;
+        const clientId = instClientId.value;
+        const clientSecret = instClientSecret.value;
+
+        if (!instance || !clientId || !clientSecret) {
+            alert('Preencha a Instância, Client ID e Client Secret antes de autorizar.');
+            return;
+        }
+
+        // Salvar ANTES de autorizar para que o backend tenha as credenciais
+        const p = prefix === 'Main' ? '' : prefix.toUpperCase() + '_';
+        currentConfig[`${p}SN_INSTANCE`] = instance;
+        currentConfig[`${p}SN_CLIENT_ID`] = clientId;
+        currentConfig[`${p}SN_CLIENT_SECRET`] = clientSecret;
+        
+        pushConfig(currentConfig).then(() => {
+            const authUrl = `/api/auth/${prefix === 'Main' ? 'DEFAULT' : prefix}`;
+            window.open(authUrl, 'SN_Auth', 'width=600,height=700');
+            oauthStatus.innerHTML = '<span style="color:#FFD700">Aguardando confirmação do navegador...</span>';
+        });
+    });
 
     addEnvBtn.addEventListener('click', () => {
         instanceForm.reset();
@@ -121,12 +174,24 @@ document.addEventListener('DOMContentLoaded', () => {
     instanceForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const prefix = instPrefix.value.toUpperCase().replace(/\s/g, '');
-        const isMain = prefix === 'MAIN';
+        const isMain = prefix === 'MAIN' || prefix === 'DEFAULT';
         const p = isMain ? '' : prefix + '_';
 
         currentConfig[`${p}SN_INSTANCE`] = instName.value;
-        currentConfig[`${p}SN_USER`] = instUser.value;
-        currentConfig[`${p}SN_PASSWORD`] = instPass.value;
+        
+        if (authMethod.value === 'basic') {
+            currentConfig[`${p}SN_USER`] = instUser.value;
+            currentConfig[`${p}SN_PASSWORD`] = instPass.value;
+            // Limpar OAuth se estiver voltando pro Basic
+            delete currentConfig[`${p}SN_OAUTH_ACCESS_TOKEN`];
+            delete currentConfig[`${p}SN_OAUTH_REFRESH_TOKEN`];
+        } else {
+            currentConfig[`${p}SN_CLIENT_ID`] = instClientId.value;
+            currentConfig[`${p}SN_CLIENT_SECRET`] = instClientSecret.value;
+            // Limpar Basic
+            delete currentConfig[`${p}SN_USER`];
+            delete currentConfig[`${p}SN_PASSWORD`];
+        }
 
         await pushConfig(currentConfig);
         modal.classList.remove('active');
@@ -189,7 +254,8 @@ window.testConnection = async (prefix, btnEl) => {
     const body = {
         instance: envData[`${p}SN_INSTANCE`],
         user:     envData[`${p}SN_USER`],
-        password: envData[`${p}SN_PASSWORD`]
+        password: envData[`${p}SN_PASSWORD`],
+        oauth_token: envData[`${p}SN_OAUTH_ACCESS_TOKEN`]
     };
 
     const btn = btnEl || window.event?.target;
