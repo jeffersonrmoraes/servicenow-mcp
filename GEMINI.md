@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v3.0.0)
+# GEMINI.md — Contexto do Projeto para IA (v3.1.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,7 +7,7 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## 📌 Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `3.0.0` (Major Release - Consolidado)
+- **Versão Atual**: `3.1.0` (Minor Release - Front-end Support)
 - **Descrição**: Servidor MCP que expõe ferramentas consolidadas para agentes de IA interagirem com o ServiceNow via REST API nativa.
 - **Compatibilidade**: Claude Desktop, VS Code (GitHub Copilot), Google Agentspace (Antigravity)
 - **Licença**: MIT
@@ -15,15 +15,16 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 
 ---
 
-## 🗂️ Estrutura de Arquivos (v3.0+)
+## 🗂️ Estrutura de Arquivos (v3.1+)
 
 ```
 servicenow-mcp/
-├── index.js               ← Orquestrador MCP — registra ~25 ferramentas de alta performance
+├── index.js               ← Orquestrador MCP — registra ~32 ferramentas de alta performance
 ├── lib/
 │   └── client.js          ← HTTP client dinâmico (snGet, snPost, snPatch, snDelete, snPostBinary, snGetBinary)
 ├── tools/
 │   ├── scripts.js         ← Core CRUD + sn_upsert_metadata_script + sn_manage_schema
+│   ├── frontend.js        ← NOVO: UI/UX (sn_manage_widget, sn_manage_ui_action, sn_manage_ui_page)
 │   ├── catalog.js         ← Service Catalog (sn_manage_catalog_item, sn_manage_catalog_variable, sn_manage_catalog_category)
 │   ├── flow.js            ← Flow Designer (sn_get_flow, sn_activate_flow, sn_trigger_flow, etc.)
 │   ├── security.js        ← Security Consolidada (sn_manage_acl, sn_manage_notification, sn_manage_access)
@@ -34,7 +35,7 @@ servicenow-mcp/
 ├── GEMINI.md              ← Este arquivo (contexto para IA desenvolvedora)
 ├── README.md              ← Documentação pública
 ├── .env.example           ← Template de variáveis de ambiente
-└── package.json           ← v3.0.0, ESM, Node ≥ 18
+└── package.json           ← v3.1.0, ESM, Node ≥ 18
 ```
 
 ---
@@ -51,13 +52,7 @@ servicenow-mcp/
 
 ---
 
-## 🌐 Arquitetura Multi-Instância
-
-**Toda** ferramenta aceita o parâmetro opcional `env`. A função `getContext(env)` em `lib/client.js` resolve as credenciais dinamicamente baseado em prefixos (ex: `PDI_`, `DEV_`).
-
----
-
-## 📐 Padrão de Ferramenta Consolidada (v3.0+)
+## 📐 Padrão de Ferramenta Consolidada (v3.1+)
 
 A partir da v3.0, priorizamos o uso de **Gerenciadores de Domínio** (`sn_manage_*` ou `sn_upsert_*`) que consolidam `POST` (criação) e `PATCH` (atualização) em uma única ferramenta via parâmetro opcional `sys_id`.
 
@@ -81,17 +76,18 @@ A partir da v3.0, priorizamos o uso de **Gerenciadores de Domínio** (`sn_manage
 
 ---
 
-## 📦 Ferramentas Ativas (v3.0.0 — ~25 total)
+## 📦 Ferramentas Ativas (v3.1.0 — ~32 total)
 
 | Módulo | Exemplos de Ferramentas |
 |---|---|
-| `scripts.js` | `sn_query_records`, `sn_upsert_metadata_script`, `sn_manage_schema`, `sn_execute_script` |
+| `scripts.js` | `sn_query_records`, `sn_upsert_metadata_script`, `sn_manage_schema` |
+| `frontend.js` | `sn_manage_widget`, `sn_manage_ui_action`, `sn_manage_ui_page` |
 | `security.js` | `sn_manage_acl`, `sn_manage_notification`, `sn_manage_access` |
-| `catalog.js` | `sn_manage_catalog_item`, `sn_manage_catalog_variable`, `sn_manage_catalog_category` |
-| `flow.js` | `sn_get_flow`, `sn_activate_flow`, `sn_trigger_flow`, `sn_list_flow_executions` |
-| `attachments.js`| `sn_upload_attachment`, `sn_list_attachments`, `sn_download_attachment`, `sn_delete_attachment` |
-| `properties.js` | `sn_get_sys_property`, `sn_set_sys_property`, `sn_list_sys_properties`, `sn_delete_sys_property` |
-| `deploy.js` | `sn_create_update_set`, `sn_set_current_update_set`, `sn_list_update_sets`, `sn_complete_update_set` |
+| `catalog.js` | `sn_manage_catalog_item`, `sn_manage_catalog_variable` |
+| `flow.js` | `sn_get_flow`, `sn_activate_flow`, `sn_trigger_flow` |
+| `attachments.js`| `sn_upload_attachment`, `sn_download_attachment` |
+| `properties.js` | `sn_get_sys_property`, `sn_set_sys_property` |
+| `deploy.js` | `sn_create_update_set`, `sn_set_current_update_set` |
 
 ---
 
@@ -99,6 +95,6 @@ A partir da v3.0, priorizamos o uso de **Gerenciadores de Domínio** (`sn_manage
 
 1. **Nunca use `require()`** — o projeto é 100% ESM.
 2. **Sempre atualizar tudo antes de um `git push`**:
-   - `README.md`, `AI_REFERENCE.md`, `GEMINI.md`, `package.json` (v3.0.0+), `index.js`.
-3. **Padrão Major**: Como dezenas de ferramentas foram unificadas, a versão saltou para **3.x.x**.
+   - `README.md`, `AI_REFERENCE.md`, `GEMINI.md`, `package.json` (v3.1.0+), `index.js`.
+3. **Padrão Major/Minor**: Bump de versão constante em toda grande entrega de ferramentas ou refatoração.
 4. **`out.txt`**: Sempre ignorado pelo Git.
