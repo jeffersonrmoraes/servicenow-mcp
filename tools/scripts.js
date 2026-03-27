@@ -139,6 +139,19 @@ export const scriptTools = [
       required: ["action", "table", "label"],
     },
   },
+  {
+    name: "sn_generate_ai_context",
+    description: "Gera uma explicação em Markdown otimizada para o Context Window da IA a partir de um registro.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        env:   { type: "string" },
+        table: { type: "string" },
+        sys_id: { type: "string" },
+      },
+      required: ["table", "sys_id"],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -275,6 +288,26 @@ export async function handleScriptTool(name, args) {
         }, env);
         return { action: "field_created", sys_id: result.sys_id, element: result.element };
       }
+    }
+
+    case "sn_generate_ai_context": {
+      const { table, sys_id } = args;
+      const { result: record } = await snGet(`/api/now/table/${table}/${sys_id}`, {}, env);
+      
+      // Lógica de Geração de Contexto resumido
+      let context = `# AI Context: ${record.name || record.short_description || record.sys_id}\n`;
+      context += `**Table:** ${table}\n`;
+      context += `**SysID:** ${sys_id}\n\n`;
+      
+      if (record.script || record.template || record.client_script) {
+        context += `## Script Content\n\`\`\`javascript\n${record.script || record.template || record.client_script}\n\`\`\`\n`;
+      }
+
+      if (record.description || record.short_description) {
+        context += `## Purpose\n${record.description || record.short_description}\n`;
+      }
+
+      return { markdown: context, summary: "Contexto gerado com sucesso para a IA." };
     }
 
     default: return null;
