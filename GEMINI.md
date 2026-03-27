@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v3.1.0)
+# GEMINI.md — Contexto do Projeto para IA (v3.2.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,35 +7,39 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## 📌 Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `3.1.0` (Minor Release - Front-end Support)
-- **Descrição**: Servidor MCP que expõe ferramentas consolidadas para agentes de IA interagirem com o ServiceNow via REST API nativa.
-- **Compatibilidade**: Claude Desktop, VS Code (GitHub Copilot), Google Agentspace (Antigravity)
-- **Licença**: MIT
+- **Versão Atual**: `3.2.0` (Minor Release - Visual Command Center)
+- **Descrição**: Servidor MCP que expõe ferramentas consolidadas e um Dashboard Web para gestão visual de instâncias.
+- **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API).
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
 
 ---
 
-## 🗂️ Estrutura de Arquivos (v3.1+)
+## 🗂️ Estrutura de Arquivos (v3.2+)
 
 ```
 servicenow-mcp/
-├── index.js               ← Orquestrador MCP — registra ~32 ferramentas de alta performance
+├── index.js               ← Orquestrador MCP Principal (Stdio)
+├── dashboard/
+│   ├── server.js          ← API do Dashboard (Express)
+│   └── public/            ← Frontend (SPA Vanilla + Glassmorphism)
+│       ├── index.html
+│       ├── style.css
+│       └── app.js
 ├── lib/
-│   └── client.js          ← HTTP client dinâmico (snGet, snPost, snPatch, snDelete, snPostBinary, snGetBinary)
+│   └── client.js          ← Cliente REST dinâmico (com roteador por prefixo)
 ├── tools/
-│   ├── scripts.js         ← Core CRUD + sn_upsert_metadata_script + sn_manage_schema
-│   ├── frontend.js        ← NOVO: UI/UX (sn_manage_widget, sn_manage_ui_action, sn_manage_ui_page)
-│   ├── catalog.js         ← Service Catalog (sn_manage_catalog_item, sn_manage_catalog_variable, sn_manage_catalog_category)
-│   ├── flow.js            ← Flow Designer (sn_get_flow, sn_activate_flow, sn_trigger_flow, etc.)
-│   ├── security.js        ← Security Consolidada (sn_manage_acl, sn_manage_notification, sn_manage_access)
+│   ├── scripts.js         ← Core CRUD & Scripts
+│   ├── frontend.js        ← UI/UX (Widgets, Actions)
+│   ├── catalog.js         ← Service Catalog
+│   ├── flow.js            ← Flow Designer
+│   ├── security.js        ← Segurança (ACLs, Access)
 │   ├── deploy.js          ← Update Sets
-│   ├── attachments.js     ← Attachment API (upload, list, download, delete)
-│   └── properties.js      ← System Properties (get, set, list, delete)
-├── AI_REFERENCE.md        ← Guia de uso das ferramentas para a IA consumidora
-├── GEMINI.md              ← Este arquivo (contexto para IA desenvolvedora)
+│   ├── attachments.js     ← Attachment API
+│   └── properties.js      ← System Properties
+├── AI_REFERENCE.md        ← Guia para IAs consumidoras
+├── GEMINI.md              ← Este arquivo (contexto para desenvolvedores)
 ├── README.md              ← Documentação pública
-├── .env.example           ← Template de variáveis de ambiente
-└── package.json           ← v3.1.0, ESM, Node ≥ 18
+└── package.json           ← v3.2.0 (Scripts: start, dashboard, dev)
 ```
 
 ---
@@ -44,22 +48,15 @@ servicenow-mcp/
 
 | Item | Valor |
 |---|---|
-| Runtime | Node.js ≥ 18 |
-| Módulos | ESM (`"type": "module"`) — usar sempre `import`/`export`, nunca `require` |
-| HTTP Client | `fetch` nativo do Node (sem axios ou node-fetch) |
-| Protocolo | `@modelcontextprotocol/sdk` v1.x |
-| Entrada de dados | `stdio` transport |
+| Dashboard | Express + Vanilla HTML/JS (sem frameworks pesados) |
+| UI | Glassmorphism + Hextech Design System |
+| Módulos | ESM (`"type": "module"`) |
 
 ---
 
-## 📐 Padrão de Ferramenta Consolidada (v3.1+)
+## 📐 Padrão de Ferramenta Consolidada
 
-A partir da v3.0, priorizamos o uso de **Gerenciadores de Domínio** (`sn_manage_*` ou `sn_upsert_*`) que consolidam `POST` (criação) e `PATCH` (atualização) em uma única ferramenta via parâmetro opcional `sys_id`.
-
-**Regra para novas ferramentas**:
-1. Agrupar operações CRUD de um mesmo objeto em uma única ferramenta.
-2. Usar enums para definir ações (`action: create|update|delete|list`).
-3. Mapear campos amigáveis para nomes nativos do ServiceNow nos Handlers.
+Todas as ferramentas seguem o padrão `sn_manage_*` para CRUD inteligente. O Dashboard serve como a interface visual para validar se as instâncias estão devidamente configuradas no `.env`.
 
 ---
 
@@ -71,30 +68,19 @@ A partir da v3.0, priorizamos o uso de **Gerenciadores de Domínio** (`sn_manage
 | `snPost(path, body, env)` | POST — criação |
 | `snPatch(path, body, env)` | PATCH — atualização |
 | `snDelete(path, env)` | DELETE — remoção |
-| `snPostBinary(...)` | POST binário — upload de anexos |
-| `snGetBinary(...)` | GET binário — download de anexos (returns Base64) |
 
 ---
 
-## 📦 Ferramentas Ativas (v3.1.0 — ~32 total)
+## 📦 Ferramentas Ativas (v3.2.0 — ~35 total)
 
-| Módulo | Exemplos de Ferramentas |
-|---|---|
-| `scripts.js` | `sn_query_records`, `sn_upsert_metadata_script`, `sn_manage_schema` |
-| `frontend.js` | `sn_manage_widget`, `sn_manage_ui_action`, `sn_manage_ui_page` |
-| `security.js` | `sn_manage_acl`, `sn_manage_notification`, `sn_manage_access` |
-| `catalog.js` | `sn_manage_catalog_item`, `sn_manage_catalog_variable` |
-| `flow.js` | `sn_get_flow`, `sn_activate_flow`, `sn_trigger_flow` |
-| `attachments.js`| `sn_upload_attachment`, `sn_download_attachment` |
-| `properties.js` | `sn_get_sys_property`, `sn_set_sys_property` |
-| `deploy.js` | `sn_create_update_set`, `sn_set_current_update_set` |
+O servidor MCP e o Dashboard trabalham em conjunto para oferecer uma experiência "full-stack".
 
 ---
 
 ## ⚠️ Regras Importantes
 
 1. **Nunca use `require()`** — o projeto é 100% ESM.
-2. **Sempre atualizar tudo antes de um `git push`**:
-   - `README.md`, `AI_REFERENCE.md`, `GEMINI.md`, `package.json` (v3.1.0+), `index.js`.
-3. **Padrão Major/Minor**: Bump de versão constante em toda grande entrega de ferramentas ou refatoração.
-4. **`out.txt`**: Sempre ignorado pelo Git.
+2. **Dashboard Aesthetics**: Qualquer mudança na UI do dashboard deve respeitar o Glassmorphism e a paleta Hextech (#C8AA6E).
+3. **Versão**: Bump constante em toda grande entrega.
+4. **Padrão de Prefixos**: Credenciais no `.env` devem seguir o padrão `PREFIXO_SN_INSTANCE`. O Dashboard auxilia nessa configuração.
+

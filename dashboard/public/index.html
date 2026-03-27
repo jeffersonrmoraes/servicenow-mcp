@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Dashboard | ServiceNow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    
+    <header>
+        <div class="logo-box">
+            <span class="mcp-label">SERVICE-NOW</span>
+            <h1>MCP Dashboard <span>v3.2.0</span></h1>
+        </div>
+        <div class="status-badge" id="global-status">
+            <span class="pulse"></span> 🟢 Servidor Local Ativo
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        
+        <!-- Seção de Instâncias -->
+        <section class="card glass">
+            <div class="card-header">
+                <h2>🌐 Ambientes (Multi-tenant)</h2>
+                <button class="btn-hex" id="add-env-btn">+ Novo</button>
+            </div>
+            <div id="instance-list" class="instance-list">
+                <!-- Injetar via JS -->
+                 <p class="loading">Carregando instâncias...</p>
+            </div>
+        </section>
+
+        <!-- Seção de Configuração -->
+        <section class="card glass">
+            <div class="card-header">
+                <h2>⚙️ Configuração .env</h2>
+                <button class="btn-hex primary" id="save-env-btn">Salvar Alterações</button>
+            </div>
+            <div class="env-editor-box">
+                <textarea id="env-editor" spellcheck="false"></textarea>
+            </div>
+        </section>
+
+        <!-- Seção de Ferramentas -->
+        <section class="card glass full-width">
+            <div class="card-header">
+                <h2>🛠️ Tool Explorer (v3.1.0)</h2>
+            </div>
+            <div id="tools-list" class="tools-grid">
+                <!-- Injetar via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="glass">
+        <p>© 2026 ServiceNow MCP Platform — Crafted with Visual Excellence</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
