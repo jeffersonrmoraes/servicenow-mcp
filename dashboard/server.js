@@ -25,8 +25,12 @@ app.get('/api/env', (req, res) => {
   if (fs.existsSync(envPath)) {
     const content = fs.readFileSync(envPath, 'utf8');
     content.split('\n').forEach(line => {
-      const [key, value] = line.split('=');
-      if (key && value) env[key.trim()] = value.trim();
+      const idx = line.indexOf('=');
+      if (idx !== -1) {
+        const key = line.substring(0, idx).trim();
+        const value = line.substring(idx + 1).trim();
+        if (key && value) env[key] = value;
+      }
     });
   }
 

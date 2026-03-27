@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="name">${inst.prefix} Instance</div>
                     <div class="details">https://${inst.instance}.service-now.com — ${inst.user}</div>
                 </div>
-                <button class="btn-tech" onclick="testConnection('${inst.prefix}')">Testar</button>
+                <button class="btn-tech" onclick="testConnection('${inst.prefix}', this)">Testar</button>
                 <div class="settings-icon-btn" onclick="editInstance('${inst.prefix}')" title="Configurações">⚙️</div>
             </div>
         `).join('');
@@ -153,7 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newData = { ...currentConfig }; // Iniciar com os dados reais em memória
 
         lines.forEach(line => {
-            const [k, v] = line.split('=');
+            const idx = line.indexOf('=');
+            if (idx === -1) return;
+            const k = line.substring(0, idx);
+            const v = line.substring(idx + 1);
             if (!k || !v) return;
             const key = k.trim();
             const val = v.trim();
@@ -177,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // TEST CONNECTION (GLOBAL)
-window.testConnection = async (prefix) => {
+window.testConnection = async (prefix, btnEl) => {
     // Pegar estado real atual da memória em vez do editor mascarado
     const resEnv = await fetch('/api/env');
     const envData = await resEnv.json();
@@ -189,8 +192,8 @@ window.testConnection = async (prefix) => {
         password: envData[`${p}SN_PASSWORD`]
     };
 
-    const btn = event.target;
-    btn.innerText = '...';
+    const btn = btnEl || window.event?.target;
+    if (btn) btn.innerText = '...';
 
     try {
         const res = await fetch('/api/test', {
@@ -199,14 +202,18 @@ window.testConnection = async (prefix) => {
             body: JSON.stringify(body)
         });
         const result = await res.json();
-        btn.innerHTML = result.status === 'connected' ? '✅ OK' : '❌ ERR';
-        btn.style.color = result.status === 'connected' ? '#00FF41' : '#FF2B2B';
+        if (btn) {
+            btn.innerHTML = result.status === 'connected' ? '✅ OK' : '❌ ERR';
+            btn.style.color = result.status === 'connected' ? '#00FF41' : '#FF2B2B';
+        }
     } catch {
-        btn.innerHTML = '❌ ERR';
+        if (btn) btn.innerHTML = '❌ ERR';
     }
 
     setTimeout(() => {
-        btn.innerText = 'Testar';
-        btn.style.color = '';
+        if (btn) {
+            btn.innerText = 'Testar';
+            btn.style.color = '';
+        }
     }, 3000);
 };
