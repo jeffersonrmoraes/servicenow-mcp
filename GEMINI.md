@@ -174,6 +174,10 @@ Para **testes de integração**, conecte ao Agentspace com o `mcp_config.json` c
 1. **Nunca use `require()`** — o projeto é 100% ESM.
 2. **Toda nova tool DEVE ter `env` no schema** — sem exceções.
 3. **Nunca commite o `.env`** — use apenas `.env.example`.
-4. **Atualizar sempre**: `README.md` (changelog + tabela de tools), `package.json` (version), `index.js` (version nos dois lugares) a cada nova feature.
+4. **Atualizar sempre antes de qualquer `git push`**:
+   - `README.md` → seção de ferramentas + entrada no **Changelog** + **Roadmap** atualizado
+   - `package.json` → campo `"version"`
+   - `index.js` → versão no `new Server(...)` e no `console.error(...)` (dois lugares)
+   - `GEMINI.md` → campo **Versão Atual** e tabela de **Ferramentas Registradas**
 5. **Bump de versão**: patch (`x.x.1`) para correções, minor (`x.1.0`) para novas ferramentas, major (`1.0.0`) para breaking changes.
-6. **`out.txt`**: arquivo temporário gerado em testes — não commitar (já está no `.gitignore`? verificar).
+6. **`out.txt`**: arquivo temporário gerado em testes — já está no `.gitignore`, nunca remover essa entrada.
