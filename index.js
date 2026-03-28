@@ -14,6 +14,7 @@ import { attachmentTools,   handleAttachmentTool   } from "./tools/attachments.j
 import { propertyTools,     handlePropertyTool     } from "./tools/properties.js";
 import { frontendTools,     handleFrontendTool     } from "./tools/frontend.js";
 import { bundleTools,       handleBundleTool       } from "./tools/bundle.js";
+import { knowledgeTools,    handleKnowledgeTool    } from "./tools/knowledge.js";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas (v3.1.0)
@@ -28,6 +29,7 @@ const ALL_TOOLS = [
   ...attachmentTools,
   ...propertyTools,
   ...bundleTools,
+  ...knowledgeTools,
 ];
 
 // ─────────────────────────────────────────────
@@ -43,13 +45,14 @@ const HANDLERS = [
   handleAttachmentTool,
   handlePropertyTool,
   handleBundleTool,
+  handleKnowledgeTool,
 ];
 
 // ─────────────────────────────────────────────
 //  Server Definition
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-mcp-server", version: "3.7.0" },
+  { name: "servicenow-mcp-server", version: "3.8.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -84,4 +87,4 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error(`ServiceNow MCP Server v3.7.0 rodando — ${ALL_TOOLS.length} ferramentas consolidadas`);
+console.error(`ServiceNow MCP Server v3.8.0 rodando — ${ALL_TOOLS.length} ferramentas consolidadas`);

@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v3.7.0)
+# GEMINI.md — Contexto do Projeto para IA (v3.8.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -25,6 +25,10 @@ servicenow-mcp/
 │       ├── index.html
 │       ├── style.css
 │       └── app.js
+├── knowledge/             ← [NEW v3.8] Cérebro da Instância (KIs persistentes)
+│   ├── core/              ← Tabelas nativas (incident, change)
+│   ├── custom/            ← Tabelas u_, x_
+│   └── system/            ← Tabelas sys_
 ├── lib/
 │   └── client.js          ← Cliente REST (Suporta Basic & Bearer Auth)
 ├── tools/
@@ -72,9 +76,12 @@ Todas as ferramentas seguem o padrão `sn_manage_*` para CRUD inteligente e `sn_
 
 ---
 
-## 📦 Ferramentas Ativas (v3.7.0 — ~37 total)
+## 📦 Ferramentas Ativas (v3.8.0 — ~38 total)
 
 O servidor MCP e o Dashboard trabalham em conjunto para oferecer uma experiência "full-stack".
+
+### 🧠 Knowledge First
+O repositório utiliza uma pasta `knowledge/` para armazenar o esquema da instância. **Sempre verifique se a tabela que você vai manipular já está documentada nesta pasta antes de perguntar ao usuário ou assumir campos.**
 
 ---
 
