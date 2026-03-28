@@ -1,12 +1,14 @@
 # ServiceNow MCP Server 🚀
 
-[![v3.7.0](https://img.shields.io/badge/version-3.7.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v3.8.0](https://img.shields.io/badge/version-3.8.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (Claude, Copilot, Antigravity) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas. 
 
-**🎉 v3.7: Hybrid Auth & AI Bundling** — Suporte total para OAuth 2.0 (SSO/Azure AD), Agrupamento Atômico de Catálogo e contextos otimizados para IA.
+**🎉 v3.8: Knowledge Harvester & Smart Context** — A IA agora "aprende" a estrutura da sua instância (Tabelas, Campos, Relacionamentos) e persiste esse conhecimento localmente.
+
+**🧩 v3.7: Hybrid Auth & AI Bundling** — Suporte total para OAuth 2.0 (SSO/Azure AD), Agrupamento Atômico de Catálogo e contextos otimizados para IA.
 
 ---
 
@@ -55,10 +57,13 @@ npm run dashboard      # Use o dashboard para configurar sua primeira instância
 | `sn_manage_catalog_item` | Cria ou atualiza um item de catálogo |
 | `sn_manage_catalog_variable` | Cria ou atualiza uma variável em um item |
 
-### 🧠 IA & Contexto
+### 🧠 IA & Contexto (Knowledge Harvester v3.8)
 | Ferramenta | Descrição |
 |---|---|
-| `sn_generate_ai_context` | Gera Markdown otimizado do código/registro para o Context Window da IA |
+| `sn_sync_knowledge_base` | [v3.8] Sincroniza metadados (tabela/campo) em Markdown local |
+| `sn_generate_ai_context` | Gera Markdown otimizado do código/registro para o Context Window |
+
+**💡 Knowledge-First AI**: A pasta `knowledge/` armazena o "cérebro" da instância sincronizada, permitindo que qualquer IA entenda o seu modelo de dados sem erros.
 
 ### 🛠️ Core CRUD (Qualquer Tabela)
 | Ferramenta | Descrição |
@@ -81,6 +86,7 @@ npm run dashboard      # Use o dashboard para configurar sua primeira instância
 
 | Versão | Data | O que mudou |
 |---|---|---|
+| **v3.8.0** | 2026-03-27 | 🌪️ **Knowledge Harvester** — Crawler de metadados persistente (Aprende seu modelo de dados). |
 | **v3.7.0** | 2026-03-27 | 🔐 **Hybrid Auth Edition** — Suporte para OAuth 2.0, Integração com SSO (Azure AD) via browser. |
 | **v3.6.0** | 2026-03-27 | 📦 **AI Bundling** — Ferramentas de pacote atômico e Context Window optimization. |
 | **v3.5.0** | 2026-03-27 | 🌑 **Dark Tech Edition** — Redesign do Dashboard, Auto-URL e Privacy Masking. |
