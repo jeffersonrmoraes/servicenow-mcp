@@ -1,11 +1,13 @@
 # ServiceNow MCP Server 🚀
 
-[![v3.8.0](https://img.shields.io/badge/version-3.8.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v3.8.1](https://img.shields.io/badge/version-3.8.1-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
+
+**🛡️ v3.8.1: Security Hardening & Quality** — Validação de inputs, cache TTL, rate limiting, testes unitários e correções de bugs críticos.
 
 **🌪️ v3.8: Knowledge Harvester & Smart Context** — A IA agora "aprende" a estrutura da sua instância (Tabelas, Campos, Relacionamentos) e persiste esse conhecimento localmente.
 
@@ -25,6 +27,7 @@ O **ServiceNow MCP Server** é um conector de alta performance que permite que a
   - [Antigravity (Google Agentspace)](#-antigravity-google-agentspace)
 - [MCP Dashboard](#️-mcp-dashboard-v370)
 - [Knowledge Harvester](#-knowledge-harvester-harvest-v380)
+- [Testes](#-testes)
 - [Ferramentas Disponíveis](#️-ferramentas-disponíveis)
 - [Changelog](#-changelog)
 
@@ -266,6 +269,22 @@ O resultado é salvo em `knowledge/core/`, `knowledge/system/` e `knowledge/cust
 
 ---
 
+## 🧪 Testes
+
+O projeto utiliza o runner nativo do Node.js (`node:test`) — sem dependências extras.
+
+```bash
+npm test
+```
+
+Os testes cobrem:
+- `lib/validate.js` — validação de tableName, sys_id e limit
+- `lib/cache.js` — get/set/TTL/invalidate
+- `lib/ratelimit.js` — sliding window, isolamento por ambiente
+- `tools/security.js` — guards de null check em lookups de grupo/usuário/role
+
+---
+
 ## 🛠️ Ferramentas Disponíveis
 
 ### 🧠 IA & Contexto (Knowledge Harvester v3.8)
@@ -342,6 +361,7 @@ O resultado é salvo em `knowledge/core/`, `knowledge/system/` e `knowledge/cust
 
 | Versão | Data | O que mudou |
 |---|---|---|
+| **v3.8.1** | 2026-03-29 | 🛡️ **Security Hardening** — Validação de inputs (`lib/validate.js`), cache TTL 60s (`lib/cache.js`), rate limit 10 req/s (`lib/ratelimit.js`), 22 testes unitários, `/api/env` seguro, `saveEnvFile` async, null checks em security tools, startup validation. |
 | **v3.8.0** | 2026-03-27 | 🌪️ **Knowledge Harvester** — Crawler de metadados persistente em Markdown. `harvest.js` consolidado com 7 modos CLI. |
 | **v3.7.0** | 2026-03-27 | 🔐 **Hybrid Auth** — OAuth 2.0, SSO/Azure AD via browser, Dashboard com Environment Manager. |
 | **v3.6.0** | 2026-03-27 | 📦 **AI Bundling** — Catálogo atômico e otimização de Context Window. |
