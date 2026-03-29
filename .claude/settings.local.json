@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node harvest_main.js)",
+      "Bash(node harvest_portal.js)",
+      "Bash(node harvest_enrichment.js)",
+      "Bash(node harvest_flow_portal_ux.js)"
+    ]
+  }
+}
