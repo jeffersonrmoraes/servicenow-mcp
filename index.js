@@ -17,7 +17,7 @@ import { bundleTools,       handleBundleTool       } from "./tools/bundle.js";
 import { knowledgeTools,    handleKnowledgeTool    } from "./tools/knowledge.js";
 
 // ─────────────────────────────────────────────
-//  Todas as ferramentas registradas (v3.1.0)
+//  Todas as ferramentas registradas (v3.8.0)
 // ─────────────────────────────────────────────
 const ALL_TOOLS = [
   ...scriptTools,

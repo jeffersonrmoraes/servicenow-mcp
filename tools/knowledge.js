@@ -66,9 +66,13 @@ export async function handleKnowledgeTool(name, args) {
 
       const results = [];
       const knowledgeDir = path.resolve(process.cwd(), `knowledge/${category.toLowerCase()}`);
-      
-      if (!fs.existsSync(knowledgeDir)) {
+
+      try {
+        if (!fs.existsSync(knowledgeDir)) {
           fs.mkdirSync(knowledgeDir, { recursive: true });
+        }
+      } catch (e) {
+        return { status: "error", message: `Falha ao criar diretório ${knowledgeDir}: ${e.message}` };
       }
 
       for (const table of tables) {
@@ -90,21 +94,21 @@ export async function handleKnowledgeTool(name, args) {
         md += `|---|---|---|---|---|\n`;
 
         columns.forEach(col => {
-            if (!col.element) return; // Skip base entry
-            
-            // Handle display values for internal_type and reference
+            if (!col.element) return;
             const typeValue = typeof col.internal_type === 'object' ? (col.internal_type.display_value || col.internal_type.value) : col.internal_type;
-            const refValue = typeof col.reference === 'object' ? (col.reference.display_value || col.reference.value || "-") : (col.reference || "-");
-            const mandatoryIcon = col.mandatory === "true" || col.mandatory === true ? "✅" : "-";
-
-            md += `| \`${col.element}\` | ${col.column_label} | ${typeValue} | ${refValue} | ${mandatoryIcon} |\n`;
+            const refValue  = typeof col.reference === 'object'     ? (col.reference.display_value  || col.reference.value  || "-") : (col.reference || "-");
+            const mandatory = col.mandatory === "true" || col.mandatory === true ? "✅" : "-";
+            md += `| \`${col.element}\` | ${col.column_label} | ${typeValue} | ${refValue} | ${mandatory} |\n`;
         });
 
         md += `\n\n---\n*Knowledge harvested by ServiceNow MCP v3.8.0 on ${new Date().toISOString()}*`;
 
-        const filePath = path.join(knowledgeDir, `${table.name}.md`);
-        fs.writeFileSync(filePath, md, 'utf8');
-        results.push(table.name);
+        try {
+          fs.writeFileSync(path.join(knowledgeDir, `${table.name}.md`), md, 'utf8');
+          results.push(table.name);
+        } catch (e) {
+          results.push(`ERROR:${table.name}:${e.message}`);
+        }
       }
 
       // 5. Atualizar ou Criar INDEX.md
@@ -128,7 +132,9 @@ async function updateIndex(baseDir) {
     let indexMd = `# ServiceNow Knowledge Base Index\n\n`;
     indexMd += `Este diretório contém a documentação técnica da instância sincronizada via MCP Harvester.\n\n`;
 
-    const categories = ['core', 'custom', 'system'];
+    const categories = fs.readdirSync(knowledgeRoot).filter(
+      f => fs.statSync(path.join(knowledgeRoot, f)).isDirectory()
+    ).sort();
     for (const cat of categories) {
         const catDir = path.join(knowledgeRoot, cat);
         if (fs.existsSync(catDir)) {
