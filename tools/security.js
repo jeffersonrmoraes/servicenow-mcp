@@ -129,6 +129,7 @@ export async function handleSecurityTool(name, args) {
 
       case "remove_role": {
         const roleData = await snGet("/api/now/table/sys_user_role", { sysparm_query: `name=${data.role}`, sysparm_limit: 1 }, env);
+        if (!roleData.result?.length) throw new Error(`Role '${data.role}' não encontrada`);
         const relData = await snGet("/api/now/table/sys_security_acl_role", {
           sysparm_query: `sys_security_acl=${sys_id}^sys_user_role=${roleData.result[0].sys_id}`,
           sysparm_limit: 1
@@ -178,13 +179,16 @@ export async function handleSecurityTool(name, args) {
 
     if (type === "group_member") {
       const group = await snGet("/api/now/table/sys_user_group", { sysparm_query: `name=${data.group_name}`, sysparm_limit: 1 }, env);
+      if (!group.result?.length) throw new Error(`Grupo '${data.group_name}' não encontrado`);
       const user  = await snGet("/api/now/table/sys_user", { sysparm_query: `user_name=${data.user_name}`, sysparm_limit: 1 }, env);
-      
+      if (!user.result?.length) throw new Error(`Usuário '${data.user_name}' não encontrado`);
+
       if (action === "add") {
         const { result } = await snPost("/api/now/table/sys_user_grmember", { group: group.result[0].sys_id, user: user.result[0].sys_id }, env);
         return result;
       } else if (action === "remove") {
         const rel = await snGet("/api/now/table/sys_user_grmember", { sysparm_query: `group=${group.result[0].sys_id}^user=${user.result[0].sys_id}`, sysparm_limit: 1 }, env);
+        if (!rel.result?.length) throw new Error(`Membro '${data.user_name}' não pertence ao grupo '${data.group_name}'`);
         await snDelete(`/api/now/table/sys_user_grmember/${rel.result[0].sys_id}`, env);
         return { action: "removed", user: data.user_name, group: data.group_name };
       } else if (action === "list") {
@@ -195,7 +199,9 @@ export async function handleSecurityTool(name, args) {
 
     if (type === "user_role" && action === "add") {
       const user = await snGet("/api/now/table/sys_user", { sysparm_query: `user_name=${data.user_name}`, sysparm_limit: 1 }, env);
+      if (!user.result?.length) throw new Error(`Usuário '${data.user_name}' não encontrado`);
       const role = await snGet("/api/now/table/sys_user_role", { sysparm_query: `name=${data.role_name}`, sysparm_fields: "sys_id", sysparm_limit: 1 }, env);
+      if (!role.result?.length) throw new Error(`Role '${data.role_name}' não encontrada`);
       const { result } = await snPost("/api/now/table/sys_user_has_role", { user: user.result[0].sys_id, role: role.result[0].sys_id }, env);
       return result;
     }

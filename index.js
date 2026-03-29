@@ -82,6 +82,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // ─────────────────────────────────────────────
+//  Startup — Validação de Ambiente
+// ─────────────────────────────────────────────
+function validateEnv() {
+  const hasDefault = !!process.env.SN_INSTANCE;
+  if (!hasDefault) {
+    // Verifica se existe ao menos um ambiente prefixado configurado
+    const hasPrefixed = Object.keys(process.env).some(k => k.endsWith("_SN_INSTANCE"));
+    if (!hasPrefixed) {
+      console.error(
+        "[AVISO] Nenhuma instância ServiceNow configurada (SN_INSTANCE). " +
+        "Copie .env.example para .env e preencha as credenciais antes de usar as ferramentas."
+      );
+    }
+  }
+}
+
+validateEnv();
+
+// ─────────────────────────────────────────────
 //  Start Transport
 // ─────────────────────────────────────────────
 const transport = new StdioServerTransport();

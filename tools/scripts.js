@@ -1,4 +1,5 @@
 import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
+import { validateTableName, validateSysId, validateLimit } from "../lib/validate.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Core CRUD (Genérico)
@@ -163,8 +164,10 @@ export async function handleScriptTool(name, args) {
 
   switch (name) {
     case "sn_query_records": {
+      validateTableName(args.table);
+      const limit = args.limit ? validateLimit(args.limit) : 10;
       const { result } = await snGet(`/api/now/table/${args.table}`, {
-        sysparm_limit: args.limit || 10,
+        sysparm_limit: limit,
         ...(args.query  && { sysparm_query: args.query }),
         ...(args.fields && { sysparm_fields: args.fields }),
       }, env);
@@ -172,21 +175,28 @@ export async function handleScriptTool(name, args) {
     }
 
     case "sn_get_record": {
+      validateTableName(args.table);
+      validateSysId(args.sys_id);
       const { result } = await snGet(`/api/now/table/${args.table}/${args.sys_id}`, {}, env);
       return result;
     }
 
     case "sn_create_record": {
+      validateTableName(args.table);
       const { result } = await snPost(`/api/now/table/${args.table}`, args.data, env);
       return result;
     }
 
     case "sn_update_record": {
+      validateTableName(args.table);
+      validateSysId(args.sys_id);
       const { result } = await snPatch(`/api/now/table/${args.table}/${args.sys_id}`, args.data, env);
       return result;
     }
 
     case "sn_delete_record": {
+      validateTableName(args.table);
+      validateSysId(args.sys_id);
       await snDelete(`/api/now/table/${args.table}/${args.sys_id}`, env);
       return { deleted: true, table: args.table, sys_id: args.sys_id };
     }

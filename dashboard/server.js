@@ -24,18 +24,18 @@ function parseEnvFile() {
     if (idx !== -1) {
       const key = line.substring(0, idx).trim();
       const value = line.substring(idx + 1).trim();
-      if (key) acc[key] = value;
+      if (key && !key.startsWith('#')) acc[key] = value;
     }
     return acc;
   }, {});
 }
 
-function saveEnvFile(data) {
+async function saveEnvFile(data) {
   const content = Object.entries(data)
     .filter(([k, v]) => k && v)
     .map(([k, v]) => `${k}=${v}`)
     .join('\n');
-  fs.writeFileSync(envPath, content, 'utf8');
+  await fs.promises.writeFile(envPath, content, 'utf8');
   Object.assign(process.env, data);
 }
 
@@ -47,24 +47,20 @@ function resolveSnUrl(instance) {
 //  Endpoints da API
 // ─────────────────────────────────────────────
 
-// Ler o .env e parsear (com fallback para process.env)
+// Ler o .env (apenas o arquivo — sem expor process.env)
 app.get('/api/env', (_req, res) => {
   const env = parseEnvFile();
-
-  // Mesclar com variáveis SN_* do processo (fallback do sistema)
-  Object.entries(process.env).forEach(([key, value]) => {
-    if (/SN_(INSTANCE|USER|PASSWORD|OAUTH)/.test(key) && !env[key]) {
-      env[key] = value;
-    }
-  });
-
   res.json(env);
 });
 
 // Salvar no .env
-app.post('/api/env', (req, res) => {
-  saveEnvFile(req.body);
-  res.json({ success: true });
+app.post('/api/env', async (req, res) => {
+  try {
+    await saveEnvFile(req.body);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: `Falha ao salvar configurações: ${err.message}` });
+  }
 });
 
 // OAuth 1: Redirecionar para ServiceNow
@@ -114,7 +110,7 @@ app.get('/api/callback', async (req, res) => {
     const tokenRes = await fetch(`${snUrl}/oauth_token.do`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenParams,
+      body: tokenParams.toString(),
     });
 
     const tokenData = await tokenRes.json();
@@ -122,7 +118,7 @@ app.get('/api/callback', async (req, res) => {
     if (tokenData.access_token) {
       allEnv[`${envPrefix}SN_OAUTH_ACCESS_TOKEN`] = tokenData.access_token;
       if (tokenData.refresh_token) allEnv[`${envPrefix}SN_OAUTH_REFRESH_TOKEN`] = tokenData.refresh_token;
-      saveEnvFile(allEnv);
+      await saveEnvFile(allEnv);
       res.send(`<h1>Autorização OK!</h1><p>O token para <b>${prefix}</b> foi salvo. Você pode fechar esta janela e voltar ao Dashboard.</p><script>setTimeout(() => window.close(), 3000);</script>`);
     } else {
       res.status(500).send(`Erro na troca de token: ${JSON.stringify(tokenData)}`);
@@ -158,5 +154,5 @@ app.post('/api/test', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`\x1b[36m%s\x1b[0m`, `🚀 MCP Dashboard rodando em http://localhost:${port}`);
+  console.log(`\x1b[36m%s\x1b[0m`, `MCP Dashboard rodando em http://localhost:${port}`);
 });
