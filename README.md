@@ -1,11 +1,13 @@
 # ServiceNow MCP Server 🚀
 
-[![v3.8.1](https://img.shields.io/badge/version-3.8.1-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v3.9.0](https://img.shields.io/badge/version-3.9.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
+
+**⚡ v3.9.0: MCP Resources & Backoff** — Exposição de schemas locais como Resources, rate limiter com backoff inteligente, paginação (offset), sn_list_envs e suporte a bulk update.
 
 **🛡️ v3.8.1: Security Hardening & Quality** — Validação de inputs, cache TTL, rate limiting, testes unitários e correções de bugs críticos.
 
@@ -269,6 +271,14 @@ O resultado é salvo em `knowledge/core/`, `knowledge/system/` e `knowledge/cust
 
 ---
 
+## 📚 MCP Resources (v3.9.0)
+
+Além das ferramentas, o servidor agora expõe a base de conhecimento local (`knowledge/`) como **MCP Resources**. 
+
+Isso permite que a IA leia a definição técnica de qualquer tabela sincronizada sem fazer chamadas adicionais à API do ServiceNow. Os recursos seguem o esquema de URI `knowledge://{category}/{table_name}` (ex: `knowledge://core/incident`).
+
+---
+
 ## 🧪 Testes
 
 O projeto utiliza o runner nativo do Node.js (`node:test`) — sem dependências extras.
@@ -304,11 +314,13 @@ Os testes cobrem:
 ### 🛠️ Core CRUD (Qualquer Tabela)
 | Ferramenta | Descrição |
 |---|---|
-| `sn_query_records` | Consulta registros com query e filtros |
+| `sn_query_records` | Consulta registros com query, filtros e **paginação (offset)** |
+| `sn_bulk_update` | Atualiza múltiplos registros via query em uma única chamada |
 | `sn_get_record` | Busca um registro específico pelo sys_id |
 | `sn_create_record` | Cria registro genérico (campos nativos) |
 | `sn_update_record` | Atualiza registro genérico pelo sys_id |
 | `sn_delete_record` | Remove um registro pelo sys_id |
+| `sn_list_envs` | Lista todos os ambientes configurados no `.env` |
 
 ### 🎨 Front-end & UX
 | Ferramenta | Descrição |
@@ -361,6 +373,7 @@ Os testes cobrem:
 
 | Versão | Data | O que mudou |
 |---|---|---|
+| **v3.9.0** | 2026-04-08 | ⚡ **MCP Resources & Performance** — Exposição de `knowledge/` como resources, roteamento O(1), rate limit com backoff assíncrono, paginação (`offset`), `sn_list_envs`, `sn_bulk_update`, fix cache invalidation e fix ordenação de flows. |
 | **v3.8.1** | 2026-03-29 | 🛡️ **Security Hardening** — Validação de inputs (`lib/validate.js`), cache TTL 60s (`lib/cache.js`), rate limit 10 req/s (`lib/ratelimit.js`), 22 testes unitários, `/api/env` seguro, `saveEnvFile` async, null checks em security tools, startup validation. |
 | **v3.8.0** | 2026-03-27 | 🌪️ **Knowledge Harvester** — Crawler de metadados persistente em Markdown. `harvest.js` consolidado com 7 modos CLI. |
 | **v3.7.0** | 2026-03-27 | 🔐 **Hybrid Auth** — OAuth 2.0, SSO/Azure AD via browser, Dashboard com Environment Manager. |

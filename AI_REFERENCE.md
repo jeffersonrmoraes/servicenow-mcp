@@ -1,4 +1,4 @@
-# Guia de Ferramentas - ServiceNow MCP Server (v3.8.1)
+# Guia de Ferramentas - ServiceNow MCP Server (v3.9.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
@@ -10,8 +10,9 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 2. **Dashboard Visual**: Use o `npm run dashboard` para gerenciar seus ambientes visualmente antes de começar a codar.
 3. **Knowledge First (v3.8)**: Sempre verifique a pasta `knowledge/` no diretório raiz. Se a tabela que você vai usar estiver documentada lá, use-a como fonte da verdade para nomes de campos e tipos.
 4. **Validação de Inputs (v3.8.1)**: Os campos `table`, `sys_id` e `limit` são validados automaticamente em todas as operações CRUD. Nomes de tabela devem seguir o padrão `[a-zA-Z0-9_]+`. sys_ids devem ter 32 caracteres hexadecimais. Limites devem ser inteiros entre 1 e 1000.
-5. **Cache automático (v3.8.1)**: Todas as chamadas `GET` são cacheadas por 60 segundos por ambiente. Operações de escrita (`POST`, `PATCH`, `DELETE`) invalidam o cache do path afetado automaticamente.
-6. **Rate Limit (v3.8.1)**: O servidor limita a 10 chamadas/segundo por ambiente. Se exceder, o erro é retornado à IA com mensagem clara — aguarde e tente novamente.
+5. **Cache automático (v3.8.1)**: Todas as chamadas `GET` são cacheadas por 60 segundos por ambiente. Operações de escrita (`POST`, `PATCH`, `DELETE`) invalidam o cache do path afetado (e da tabela pai) automaticamente.
+6. **Rate Limit com Backoff (v3.9.0)**: O servidor limita a 10 chamadas/segundo. Se exceder, ele aguarda automaticamente (backoff) até 5 segundos antes de responder — você não precisa mais implementar retry manualmente.
+7. **MCP Resources (v3.9.0)**: Use os Resources do protocolo (`knowledge://category/table`) para ler o schema de tabelas localmente sem gastar chamadas de API.
 
 ---
 
@@ -30,8 +31,9 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 2. **Validação Visual**: Se estiver criando um Widget, lembre-se que o usuário pode validar a conexão da instância via Dashboard.
 3. **Setup amigável**: Se o usuário tiver problemas de conexão, sugira que ele use o Dashboard (`localhost:3000`) para testar as credenciais.
 4. **Erros de validação**: Se receber erro de `tableName inválido` ou `sys_id inválido`, corrija o valor antes de tentar novamente — não é um erro de rede.
-5. **Rate limit**: Se receber `Rate limit excedido`, não repita imediatamente. Aguarde 1 segundo antes da próxima chamada.
-6. **Cache hit**: Respostas GET repetidas para o mesmo path/query retornam do cache (60s). Para forçar dados frescos, use `sn_query_records` com parâmetros diferentes ou aguarde o TTL.
+5. **Rate limit**: O servidor agora faz backoff automático. Se uma chamada demorar mais que o normal, pode ser o rate limit agindo.
+6. **Paginação**: Use o parâmetro `offset` em `sn_query_records` para navegar por grandes volumes de dados.
+7. **Descoberta**: Use `sn_list_envs` para ver quais ambientes estão configurados e prontos para uso.
 
 ---
 

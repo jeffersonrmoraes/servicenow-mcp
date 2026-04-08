@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v3.8.1)
+# GEMINI.md — Contexto do Projeto para IA (v3.9.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,7 +7,7 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## 📌 Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `3.8.1` (Security Hardening Edition)
+- **Versão Atual**: `3.9.0` (Performance & Resources Edition)
 - **Descrição**: Servidor MCP que expõe ferramentas consolidadas e um Dashboard Web (Dark Tech) com suporte a Auto-URL, Privacy Masking, Instance Manager GUI e OAuth 2.0.
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API).
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
@@ -31,9 +31,9 @@ servicenow-mcp/
 │   └── system/            ← Tabelas sys_
 ├── lib/
 │   ├── client.js          ← Cliente REST (Basic & Bearer Auth + cache + rate limit)
-│   ├── cache.js           ← [NEW v3.8.1] Cache TTL em memória (60s, por URL)
-│   ├── ratelimit.js       ← [NEW v3.8.1] Sliding window 10 req/s por ambiente
-│   └── validate.js        ← [NEW v3.8.1] Validação de tableName, sys_id, limit
+│   ├── cache.js           ← [v3.8.1] Cache TTL em memória (60s). Invalidação inteligente (parent table).
+│   ├── ratelimit.js       ← [v3.9.0] Sliding window 10 req/s por ambiente com Backoff Assíncrono (retry).
+│   └── validate.js        ← [v3.8.1] Validação de tableName, sys_id, limit
 ├── test/                  ← [NEW v3.8.1] Testes unitários (node:test, sem deps)
 │   ├── cache.test.js
 │   ├── ratelimit.test.js
@@ -82,7 +82,7 @@ Todas as ferramentas seguem o padrão `sn_manage_*` para CRUD inteligente e `sn_
 | `snPatch(path, body, env)` | PATCH — atualização (invalida cache do path) |
 | `snDelete(path, env)` | DELETE — remoção (invalida cache do path) |
 
-Todas as funções aplicam rate limit de 10 req/s por ambiente antes de fazer o fetch.
+Todas as funções aplicam rate limit de 10 req/s por ambiente com backoff automático (aguarda liberar em vez de falhar).
 
 ---
 
