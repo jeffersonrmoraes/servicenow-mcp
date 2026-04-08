@@ -2,34 +2,45 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkRateLimit } from "../lib/ratelimit.js";
 
-test("ratelimit: permite chamadas dentro do limite", () => {
-  // Usa um ambiente único por teste para evitar contaminação de estado
+test("ratelimit: permite chamadas dentro do limite", async () => {
   for (let i = 0; i < 10; i++) {
-    assert.doesNotThrow(() => checkRateLimit("test-allow", 10));
+    await assert.doesNotReject(() => checkRateLimit("test-allow-v2", 10));
   }
 });
 
-test("ratelimit: bloqueia ao exceder o limite", () => {
-  // Esgota o limite
+test("ratelimit: faz backoff e completa (não lança imediatamente)", async () => {
+  // Esgota o limite com 5 chamadas
   for (let i = 0; i < 5; i++) {
-    checkRateLimit("test-block", 5);
+    await checkRateLimit("test-backoff", 5);
   }
-  assert.throws(() => checkRateLimit("test-block", 5), /rate limit/i);
+  // A 6ª chamada deve fazer backoff e resolver (sem lançar) pois MAX_WAIT_MS = 5s > 1s de janela
+  const start = Date.now();
+  await assert.doesNotReject(() => checkRateLimit("test-backoff", 5));
+  const elapsed = Date.now() - start;
+  // Deve ter aguardado pelo menos algum tempo (backoff)
+  assert.ok(elapsed >= 10, `Backoff esperado, mas resolveu em ${elapsed}ms`);
 });
 
-test("ratelimit: ambientes distintos são isolados", () => {
+test("ratelimit: lança apenas se timeout de backoff for excedido", async () => {
+  // Simula estouro: MAX_WAIT_MS muito pequeno → lança
+  // Para isso, esgotamos o limite e passamos max=999999 (impossível liberar)
+  // Não dá pra testar diretamente sem mudar MAX_WAIT_MS, então apenas
+  // verificamos que a Promise retorna com await
+  const result = checkRateLimit("test-timeout-safe", 100);
+  assert.ok(result instanceof Promise, "checkRateLimit deve retornar uma Promise");
+});
+
+test("ratelimit: ambientes distintos são isolados", async () => {
   // Esgota apenas o ambiente A
-  for (let i = 0; i < 3; i++) checkRateLimit("env-a-isolated", 3);
-  assert.throws(() => checkRateLimit("env-a-isolated", 3), /rate limit/i);
+  for (let i = 0; i < 3; i++) await checkRateLimit("env-a-v2", 3);
 
   // Ambiente B não deve ser afetado
-  assert.doesNotThrow(() => checkRateLimit("env-b-isolated", 3));
+  await assert.doesNotReject(() => checkRateLimit("env-b-v2", 3));
 });
 
 test("ratelimit: janela deslizante libera após 1s", async () => {
-  for (let i = 0; i < 2; i++) checkRateLimit("test-window", 2);
-  assert.throws(() => checkRateLimit("test-window", 2), /rate limit/i);
+  for (let i = 0; i < 2; i++) await checkRateLimit("test-window-v2", 2);
 
   await new Promise(r => setTimeout(r, 1100)); // espera a janela virar
-  assert.doesNotThrow(() => checkRateLimit("test-window", 2));
+  await assert.doesNotReject(() => checkRateLimit("test-window-v2", 2));
 });

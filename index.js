@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 import 'dotenv/config';
+import fs   from "fs";
+import path from "path";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 
 import { scriptTools,       handleScriptTool       } from "./tools/scripts.js";
 import { catalogTools,      handleCatalogTool      } from "./tools/catalog.js";
@@ -13,11 +20,11 @@ import { deployTools,       handleDeployTool       } from "./tools/deploy.js";
 import { attachmentTools,   handleAttachmentTool   } from "./tools/attachments.js";
 import { propertyTools,     handlePropertyTool     } from "./tools/properties.js";
 import { frontendTools,     handleFrontendTool     } from "./tools/frontend.js";
-import { bundleTools,       handleBundleTool       } from "./tools/bundle.js";
+import { bundleTools,       handleBundleTool        } from "./tools/bundle.js";
 import { knowledgeTools,    handleKnowledgeTool    } from "./tools/knowledge.js";
 
 // ─────────────────────────────────────────────
-//  Todas as ferramentas registradas (v3.8.0)
+//  Todas as ferramentas registradas (v3.9.0)
 // ─────────────────────────────────────────────
 const ALL_TOOLS = [
   ...scriptTools,
@@ -33,46 +40,102 @@ const ALL_TOOLS = [
 ];
 
 // ─────────────────────────────────────────────
-//  Mapa de handlers por domínio
+//  Roteamento O(1) — Map: toolName → handler
 // ─────────────────────────────────────────────
-const HANDLERS = [
-  handleScriptTool,
-  handleCatalogTool,
-  handleFrontendTool,
-  handleFlowTool,
-  handleSecurityTool,
-  handleDeployTool,
-  handleAttachmentTool,
-  handlePropertyTool,
-  handleBundleTool,
-  handleKnowledgeTool,
+const toolModules = [
+  { tools: scriptTools,     handler: handleScriptTool     },
+  { tools: catalogTools,    handler: handleCatalogTool    },
+  { tools: frontendTools,   handler: handleFrontendTool   },
+  { tools: flowTools,       handler: handleFlowTool       },
+  { tools: securityTools,   handler: handleSecurityTool   },
+  { tools: deployTools,     handler: handleDeployTool     },
+  { tools: attachmentTools, handler: handleAttachmentTool },
+  { tools: propertyTools,   handler: handlePropertyTool   },
+  { tools: bundleTools,     handler: handleBundleTool     },
+  { tools: knowledgeTools,  handler: handleKnowledgeTool  },
 ];
+
+const HANDLER_MAP = new Map();
+for (const { tools, handler } of toolModules) {
+  for (const tool of tools) {
+    HANDLER_MAP.set(tool.name, handler);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  MCP Resources — Knowledge Base local
+// ─────────────────────────────────────────────
+
+const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
+
+/**
+ * Varre o diretório knowledge/ e retorna uma lista de MCP Resources,
+ * um por arquivo Markdown de schema de tabela.
+ */
+function buildKnowledgeResources() {
+  const resources = [];
+  if (!fs.existsSync(KNOWLEDGE_DIR)) return resources;
+
+  const categories = fs.readdirSync(KNOWLEDGE_DIR).filter(
+    f => fs.statSync(path.join(KNOWLEDGE_DIR, f)).isDirectory()
+  );
+
+  for (const cat of categories) {
+    const catDir = path.join(KNOWLEDGE_DIR, cat);
+    const files  = fs.readdirSync(catDir).filter(f => f.endsWith(".md"));
+
+    for (const file of files) {
+      const tableName = file.replace(".md", "");
+      // Tenta extrair o label da primeira linha do MD
+      let label = tableName;
+      try {
+        const firstLine = fs.readFileSync(path.join(catDir, file), "utf8").split("\n")[0];
+        const match = firstLine.match(/# ServiceNow Table: (.+?) \(/);
+        if (match) label = match[1].trim();
+      } catch {}
+
+      resources.push({
+        uri:         `knowledge://${cat}/${tableName}`,
+        name:        `${tableName} — ${label}`,
+        description: `Schema da tabela ServiceNow '${tableName}' (categoria: ${cat.toUpperCase()})`,
+        mimeType:    "text/markdown",
+      });
+    }
+  }
+
+  return resources;
+}
 
 // ─────────────────────────────────────────────
 //  Server Definition
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-mcp-server", version: "3.8.0" },
-  { capabilities: { tools: {} } }
+  { name: "servicenow-mcp-server", version: "3.9.0" },
+  { capabilities: { tools: {}, resources: {} } }
 );
 
+// ── List Tools ──
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: ALL_TOOLS,
 }));
 
+// ── Call Tool — O(1) lookup ──
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
+  const handler = HANDLER_MAP.get(name);
+  if (!handler) {
+    return {
+      content: [{ type: "text", text: `Ferramenta desconhecida: ${name}` }],
+      isError: true,
+    };
+  }
+
   try {
-    for (const handler of HANDLERS) {
-      const result = await handler(name, args);
-      if (result !== null) {
-        return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        };
-      }
-    }
-    throw new Error(`Ferramenta desconhecida: ${name}`);
+    const result = await handler(name, args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   } catch (err) {
     return {
       content: [{ type: "text", text: `Erro: ${err.message}` }],
@@ -81,13 +144,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// ── List Resources — expõe knowledge/ como MCP Resources ──
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  resources: buildKnowledgeResources(),
+}));
+
+// ── Read Resource — retorna o conteúdo de um arquivo do knowledge/ ──
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri } = request.params;
+
+  // URI format: knowledge://{category}/{tableName}
+  const match = uri.match(/^knowledge:\/\/([^/]+)\/(.+)$/);
+  if (!match) {
+    throw new Error(`URI de recurso inválida: '${uri}'. Formato esperado: knowledge://category/tableName`);
+  }
+
+  const [, category, tableName] = match;
+  const filePath = path.join(KNOWLEDGE_DIR, category, `${tableName}.md`);
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Recurso não encontrado: '${uri}'. Execute sn_sync_knowledge_base para sincronizar.`);
+  }
+
+  const text = fs.readFileSync(filePath, "utf8");
+
+  return {
+    contents: [
+      {
+        uri,
+        mimeType: "text/markdown",
+        text,
+      },
+    ],
+  };
+});
+
 // ─────────────────────────────────────────────
 //  Startup — Validação de Ambiente
 // ─────────────────────────────────────────────
 function validateEnv() {
   const hasDefault = !!process.env.SN_INSTANCE;
   if (!hasDefault) {
-    // Verifica se existe ao menos um ambiente prefixado configurado
     const hasPrefixed = Object.keys(process.env).some(k => k.endsWith("_SN_INSTANCE"));
     if (!hasPrefixed) {
       console.error(
@@ -106,4 +203,7 @@ validateEnv();
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error(`ServiceNow MCP Server v3.8.0 rodando — ${ALL_TOOLS.length} ferramentas consolidadas`);
+const resourceCount = buildKnowledgeResources().length;
+console.error(
+  `ServiceNow MCP Server v3.9.0 — ${ALL_TOOLS.length} ferramentas | ${resourceCount} resources de knowledge`
+);

@@ -1,5 +1,7 @@
 import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
 import { validateTableName, validateSysId, validateLimit } from "../lib/validate.js";
+import fs from "fs";
+import path from "path";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Core CRUD (Genérico)
@@ -17,6 +19,7 @@ export const scriptTools = [
         query:  { type: "string", description: "Encoded query (ex: active=true^priority=1)" },
         fields: { type: "string", description: "Campos separados por vírgula" },
         limit:  { type: "number" },
+        offset: { type: "number", description: "Offset para paginação (default: 0)" },
       },
       required: ["table"],
     },
@@ -62,6 +65,21 @@ export const scriptTools = [
     },
   },
   {
+    name: "sn_bulk_update",
+    description: "Atualiza múltiplos registros de uma tabela por query encoded. Retorna a contagem de registros afetados.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        env:   { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
+        table: { type: "string" },
+        query: { type: "string", description: "Encoded query para selecionar os registros (ex: active=true^priority=1)" },
+        data:  { type: "object", description: "Campos e valores a aplicar em todos os registros encontrados" },
+        limit: { type: "number", description: "Máximo de registros a atualizar (default: 100, máx: 500)" },
+      },
+      required: ["table", "query", "data"],
+    },
+  },
+  {
     name: "sn_delete_record",
     description: "Remove um registro de qualquer tabela pelo sys_id.",
     inputSchema: {
@@ -72,6 +90,19 @@ export const scriptTools = [
         sys_id: { type: "string" },
       },
       required: ["table", "sys_id"],
+    },
+  },
+
+  // ─────────────────────────────────────────────
+  //  TOOLS — Ambiente e Configuração
+  // ─────────────────────────────────────────────
+
+  {
+    name: "sn_list_envs",
+    description: "Lista todos os ambientes ServiceNow configurados no .env (com prefixo como DEV_, PROD_, etc). Útil para descobrir quais instâncias estão disponíveis.",
+    inputSchema: {
+      type: "object",
+      properties: {},
     },
   },
 
@@ -87,8 +118,8 @@ export const scriptTools = [
       properties: {
         env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         sys_id: { type: "string", description: "Opcional. Se fornecido, realiza atualização (PATCH). Se ausente, cria (POST)." },
-        type:   { 
-          type: "string", 
+        type:   {
+          type: "string",
           enum: ["business_rule", "script_include", "client_script", "ui_policy", "scheduled_job"],
           description: "Tipo do recurso de metadados"
         },
@@ -96,7 +127,6 @@ export const scriptTools = [
         script:    { type: "string" },
         table:     { type: "string", description: "Tabela alvo (relevante para business_rule, client_script, ui_policy)" },
         active:    { type: "boolean" },
-        // Campos específicos que são mapeados internamente
         condition: { type: "string", description: "Condição de execução (BR, UI Policy)" },
         when:      { type: "string", enum: ["before", "after", "async", "display"], description: "Para Business Rules" },
         action:    { type: "string", description: "Para BR: 'insert,update,delete,query'" },
@@ -110,13 +140,13 @@ export const scriptTools = [
   },
   {
     name: "sn_execute_script",
-    description: "Executa um script arbitrário no Background Scripts (Server-Side).",
+    description: "Executa um script arbitrário no servidor (Background Scripts). REQUER uma Scripted REST API customizada implantada na instância: crie um Scripted REST com namespace 'x_dev_agent', recurso 'script_runner', método POST que receba {script, scope} e execute via GlideSystem.evaluate(). Consulte README.md para o código completo.",
     inputSchema: {
       type: "object",
       properties: {
         env:    { type: "string" },
-        script: { type: "string" },
-        scope:  { type: "string", default: "global" },
+        script: { type: "string", description: "Script server-side a executar" },
+        scope:  { type: "string", default: "global", description: "Escopo de execução (global ou nome do app scope)" },
       },
       required: ["script"],
     },
@@ -132,7 +162,13 @@ export const scriptTools = [
         table:  { type: "string", description: "Nome da tabela (ex: u_minha_tabela)" },
         label:  { type: "string", description: "Label amigável" },
         name:   { type: "string", description: "Nome técnico do campo (se action=create_field)" },
-        type:   { type: "string", description: "Tipo do campo (string, integer, boolean, etc.)" },
+        type:   {
+          type: "string",
+          enum: ["string", "integer", "boolean", "reference", "date", "glide_date_time",
+                 "choice", "list", "glide_duration", "decimal", "float", "phone_number",
+                 "email", "url", "html", "script", "script_plain", "json"],
+          description: "Tipo do campo"
+        },
         extends_table: { type: "string", description: "Para tabelas: tabela pai" },
         max_length:    { type: "number", default: 255 },
         mandatory:     { type: "boolean" },
@@ -142,12 +178,12 @@ export const scriptTools = [
   },
   {
     name: "sn_generate_ai_context",
-    description: "Gera uma explicação em Markdown otimizada para o Context Window da IA a partir de um registro.",
+    description: "Gera uma explicação em Markdown otimizada para o Context Window da IA a partir de um registro. Cruza com o schema local do knowledge/ se disponível.",
     inputSchema: {
       type: "object",
       properties: {
-        env:   { type: "string" },
-        table: { type: "string" },
+        env:    { type: "string" },
+        table:  { type: "string" },
         sys_id: { type: "string" },
       },
       required: ["table", "sys_id"],
@@ -165,13 +201,15 @@ export async function handleScriptTool(name, args) {
   switch (name) {
     case "sn_query_records": {
       validateTableName(args.table);
-      const limit = args.limit ? validateLimit(args.limit) : 10;
+      const limit  = args.limit  ? validateLimit(args.limit)  : 10;
+      const offset = args.offset ? Math.max(0, parseInt(args.offset, 10)) : 0;
       const { result } = await snGet(`/api/now/table/${args.table}`, {
-        sysparm_limit: limit,
-        ...(args.query  && { sysparm_query: args.query }),
+        sysparm_limit:  limit,
+        sysparm_offset: offset,
+        ...(args.query  && { sysparm_query:  args.query  }),
         ...(args.fields && { sysparm_fields: args.fields }),
       }, env);
-      return result;
+      return { result, meta: { offset, limit, count: result.length } };
     }
 
     case "sn_get_record": {
@@ -194,11 +232,85 @@ export async function handleScriptTool(name, args) {
       return result;
     }
 
+    case "sn_bulk_update": {
+      validateTableName(args.table);
+      const limit = Math.min(args.limit || 100, 500);
+
+      // 1. Buscar registros que atendem a query
+      const { result: records } = await snGet(`/api/now/table/${args.table}`, {
+        sysparm_query:  args.query,
+        sysparm_fields: "sys_id",
+        sysparm_limit:  limit,
+      }, env);
+
+      if (!records || records.length === 0) {
+        return { updated: 0, message: "Nenhum registro encontrado para o filtro informado." };
+      }
+
+      // 2. Atualizar cada registro
+      const results = await Promise.allSettled(
+        records.map(r => snPatch(`/api/now/table/${args.table}/${r.sys_id}`, args.data, env))
+      );
+
+      const succeeded = results.filter(r => r.status === "fulfilled").length;
+      const failed    = results.filter(r => r.status === "rejected").map(
+        (r, i) => ({ sys_id: records[i].sys_id, reason: r.reason?.message })
+      );
+
+      return {
+        updated: succeeded,
+        failed_count: failed.length,
+        ...(failed.length > 0 && { failures: failed }),
+      };
+    }
+
     case "sn_delete_record": {
       validateTableName(args.table);
       validateSysId(args.sys_id);
       await snDelete(`/api/now/table/${args.table}/${args.sys_id}`, env);
       return { deleted: true, table: args.table, sys_id: args.sys_id };
+    }
+
+    case "sn_list_envs": {
+      const envs = [];
+      const envVars = Object.keys(process.env);
+
+      // Ambiente default (sem prefixo)
+      if (process.env.SN_INSTANCE) {
+        envs.push({
+          prefix:   "default",
+          instance: process.env.SN_INSTANCE,
+          user:     process.env.SN_USER || "(OAuth)",
+          auth:     process.env.SN_OAUTH_ACCESS_TOKEN ? "OAuth" : "Basic",
+        });
+      }
+
+      // Ambientes com prefixo (ex: DEV_SN_INSTANCE → prefix "DEV")
+      const prefixes = new Set(
+        envVars
+          .filter(k => k.endsWith("_SN_INSTANCE"))
+          .map(k => k.replace("_SN_INSTANCE", ""))
+      );
+
+      for (const prefix of prefixes) {
+        const instance = process.env[`${prefix}_SN_INSTANCE`];
+        const user     = process.env[`${prefix}_SN_USER`];
+        const hasOAuth = !!process.env[`${prefix}_SN_OAUTH_ACCESS_TOKEN`];
+        envs.push({
+          prefix,
+          instance,
+          user:  user || "(OAuth)",
+          auth:  hasOAuth ? "OAuth" : "Basic",
+        });
+      }
+
+      return {
+        count: envs.length,
+        environments: envs,
+        tip: envs.length === 0
+          ? "Nenhum ambiente configurado. Copie .env.example para .env e preencha as variáveis."
+          : "Use o campo 'prefix' como argumento 'env' nas ferramentas."
+      };
     }
 
     case "sn_upsert_metadata_script": {
@@ -208,7 +320,6 @@ export async function handleScriptTool(name, args) {
         active: data.active !== false
       };
 
-      // Mapeamento por tipo
       switch (type) {
         case "business_rule":
           finalTable = "sys_script";
@@ -268,18 +379,39 @@ export async function handleScriptTool(name, args) {
     }
 
     case "sn_execute_script": {
-      // Nota: Este endpoint costuma requerer um Scripted REST API customizado na instância
-      // ou usamos o explorador de API nativo se disponível.
-      const { result } = await snPost("/api/x_dev_agent/script_runner/execute", {
-        script: args.script,
-        scope:  args.scope || "global",
-      }, env);
-      return result;
+      // Requer Scripted REST API customizada na instância.
+      // Namespace: x_dev_agent | Resource: script_runner | Method: POST
+      // Body: { script: string, scope: string }
+      try {
+        const { result } = await snPost("/api/x_dev_agent/script_runner/execute", {
+          script: args.script,
+          scope:  args.scope || "global",
+        }, env);
+        return result;
+      } catch (err) {
+        if (err.message.includes("404") || err.message.includes("400")) {
+          throw new Error(
+            "O endpoint de execução de scripts não está disponível nesta instância.\n\n" +
+            "SETUP NECESSÁRIO: Crie uma Scripted REST API no ServiceNow:\n" +
+            "  • Namespace (API ID): x_dev_agent\n" +
+            "  • Resource path: /script_runner\n" +
+            "  • Method: POST\n" +
+            "  • Script do método:\n" +
+            "    (function process(request, response) {\n" +
+            "      var body = request.body.data;\n" +
+            "      var result = GlideSystem.evaluateScript(body.script);\n" +
+            "      response.setBody({ result: result });\n" +
+            "    })(request, response);\n\n" +
+            "Erro original: " + err.message
+          );
+        }
+        throw err;
+      }
     }
 
     case "sn_manage_schema": {
       const { action, table, label, name, type: fType, extends_table, max_length, mandatory } = args;
-      
+
       if (action === "create_table") {
         const { result } = await snPost("/api/now/table/sys_db_object", {
           label,
@@ -303,12 +435,29 @@ export async function handleScriptTool(name, args) {
     case "sn_generate_ai_context": {
       const { table, sys_id } = args;
       const { result: record } = await snGet(`/api/now/table/${table}/${sys_id}`, {}, env);
-      
-      // Lógica de Geração de Contexto resumido
-      let context = `# AI Context: ${record.name || record.short_description || record.sys_id}\n`;
+
+      let context = `# AI Context: ${record.name || record.short_description || record.number || sys_id}\n`;
       context += `**Table:** ${table}\n`;
-      context += `**SysID:** ${sys_id}\n\n`;
-      
+      context += `**SysID:** ${sys_id}\n`;
+      if (record.sys_created_on) context += `**Created:** ${record.sys_created_on}\n`;
+      if (record.sys_updated_on) context += `**Updated:** ${record.sys_updated_on}\n`;
+      context += "\n";
+
+      // Tenta enriquecer com o schema local do knowledge/
+      const categories = ["core", "custom", "system"];
+      for (const cat of categories) {
+        const knowledgePath = path.resolve(process.cwd(), `knowledge/${cat}/${table}.md`);
+        if (fs.existsSync(knowledgePath)) {
+          const schema = fs.readFileSync(knowledgePath, "utf8");
+          // Extrai apenas a seção de Schema Definition
+          const schemaMatch = schema.match(/## Schema Definition[\s\S]+?(?=\n##|$)/);
+          if (schemaMatch) {
+            context += `## Schema (from local knowledge)\n${schemaMatch[0]}\n`;
+          }
+          break;
+        }
+      }
+
       if (record.script || record.template || record.client_script) {
         context += `## Script Content\n\`\`\`javascript\n${record.script || record.template || record.client_script}\n\`\`\`\n`;
       }
@@ -317,7 +466,22 @@ export async function handleScriptTool(name, args) {
         context += `## Purpose\n${record.description || record.short_description}\n`;
       }
 
-      return { markdown: context, summary: "Contexto gerado com sucesso para a IA." };
+      // Campos relevantes (exclui sys_ internos volumosos)
+      const ignoredFields = new Set(["sys_id", "sys_meta", "sys_package", "sys_update_name",
+        "sys_scope", "sys_class_name", "sys_created_by", "sys_updated_by"]);
+      const relevantFields = Object.entries(record)
+        .filter(([k]) => !k.startsWith("sys_") || !ignoredFields.has(k))
+        .filter(([, v]) => v && typeof v !== "object")
+        .slice(0, 20); // limita para não explodir o context window
+
+      if (relevantFields.length > 0) {
+        context += "\n## Key Fields\n";
+        relevantFields.forEach(([k, v]) => {
+          context += `- **${k}**: ${v}\n`;
+        });
+      }
+
+      return { markdown: context, summary: "Contexto gerado com sucesso." };
     }
 
     default: return null;

@@ -127,12 +127,12 @@ export async function handleFlowTool(name, args) {
     }
 
     case "sn_list_flow_executions": {
+      // FIX: ordenação correta via query ^ORDERBYDESCsys_created_on
+      const statusFilter = args.status ? `^status=${args.status}` : "";
       const data = await snGet("/api/now/table/sys_flow_context", {
-        sysparm_limit:             args.limit || 10,
-        sysparm_query:             `flow=${args.flow_sys_id}${args.status ? `^status=${args.status}` : ""}`,
-        sysparm_fields:            "sys_id,flow,status,start_time,end_time,error",
-        sysparm_orderby:           "sys_created_on",
-        sysparm_orderby_direction: "desc",
+        sysparm_limit:  args.limit || 10,
+        sysparm_query:  `flow=${args.flow_sys_id}${statusFilter}^ORDERBYDESCsys_created_on`,
+        sysparm_fields: "sys_id,flow,status,start_time,end_time,error,sys_created_on",
       }, args.env);
       return data.result;
     }

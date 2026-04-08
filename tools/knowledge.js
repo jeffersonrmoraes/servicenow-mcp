@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 // ─────────────────────────────────────────────
-//  TOOLS — Knowledge Harvester (v3.8.0)
+//  TOOLS — Knowledge Harvester (v3.9.0)
 // ─────────────────────────────────────────────
 
 export const knowledgeTools = [
@@ -37,13 +37,13 @@ export async function handleKnowledgeTool(name, args) {
       const category = args.category || "CUSTOM";
       const limit = args.limit || 10;
       const offset = args.offset || 0;
-      
+
       // 1. Determinar filtros por categoria
       let query = "nameISNOTEMPTY";
       if (category === "CUSTOM") query += "^nameSTARTSWITHu_^ORnameSTARTSWITHx_";
       if (category === "SYSTEM") query += "^nameSTARTSWITHsys_";
       if (category === "CORE")   query += "^nameDOESNOTSTARTWITHu_^nameDOESNOTSTARTWITHx_^nameDOESNOTSTARTWITHsys_";
-      
+
       if (table_pattern && table_pattern !== "*") {
         if (table_pattern.includes("*")) {
           query += `^nameLIKE${table_pattern.replace("*", "")}`;
@@ -66,6 +66,7 @@ export async function handleKnowledgeTool(name, args) {
 
       const results = [];
       const knowledgeDir = path.resolve(process.cwd(), `knowledge/${category.toLowerCase()}`);
+      const syncTimestamp = new Date().toISOString();
 
       try {
         if (!fs.existsSync(knowledgeDir)) {
@@ -82,10 +83,11 @@ export async function handleKnowledgeTool(name, args) {
             sysparm_fields: "element,column_label,internal_type,reference,mandatory,default_value,max_length"
         }, env);
 
-        // 4. Gerar Markdown
+        // 4. Gerar Markdown com timestamp de sincronização
         let md = `# ServiceNow Table: ${table.label} (${table.name})\n\n`;
         md += `**Category:** ${category}\n`;
         md += `**SysID:** ${table.sys_id}\n`;
+        md += `**Last Synced:** ${syncTimestamp}\n`;
         if (table.super_class.display_value) {
             md += `**Extends:** ${table.super_class.display_value}\n`;
         }
@@ -101,7 +103,7 @@ export async function handleKnowledgeTool(name, args) {
             md += `| \`${col.element}\` | ${col.column_label} | ${typeValue} | ${refValue} | ${mandatory} |\n`;
         });
 
-        md += `\n\n---\n*Knowledge harvested by ServiceNow MCP v3.8.0 on ${new Date().toISOString()}*`;
+        md += `\n\n---\n*Synced by ServiceNow MCP v3.9.0 on ${syncTimestamp}*`;
 
         try {
           fs.writeFileSync(path.join(knowledgeDir, `${table.name}.md`), md, 'utf8');
@@ -111,13 +113,14 @@ export async function handleKnowledgeTool(name, args) {
         }
       }
 
-      // 5. Atualizar ou Criar INDEX.md
+      // 5. Atualizar INDEX.md com timestamps
       await updateIndex(process.cwd());
 
-      return { 
-        status: "success", 
-        processed_count: results.length, 
+      return {
+        status: "success",
+        processed_count: results.length,
         tables: results,
+        synced_at: syncTimestamp,
         path: `knowledge/${category.toLowerCase()}/`
       };
     }
@@ -129,20 +132,32 @@ async function updateIndex(baseDir) {
     const knowledgeRoot = path.join(baseDir, 'knowledge');
     if (!fs.existsSync(knowledgeRoot)) return;
 
+    const generatedAt = new Date().toISOString();
+
     let indexMd = `# ServiceNow Knowledge Base Index\n\n`;
     indexMd += `Este diretório contém a documentação técnica da instância sincronizada via MCP Harvester.\n\n`;
+    indexMd += `**Índice gerado em:** ${generatedAt}\n\n`;
 
     const categories = fs.readdirSync(knowledgeRoot).filter(
       f => fs.statSync(path.join(knowledgeRoot, f)).isDirectory()
     ).sort();
+
     for (const cat of categories) {
         const catDir = path.join(knowledgeRoot, cat);
         if (fs.existsSync(catDir)) {
-            indexMd += `## ${cat.toUpperCase()} Tables\n`;
             const files = fs.readdirSync(catDir).filter(f => f.endsWith('.md'));
-            files.forEach(f => {
+            indexMd += `## ${cat.toUpperCase()} Tables (${files.length})\n`;
+
+            files.sort().forEach(f => {
                 const tableName = f.replace('.md', '');
-                indexMd += `- [${tableName}](./${cat}/${f})\n`;
+                // Tenta extrair o timestamp de sincronização do arquivo
+                let syncInfo = "";
+                try {
+                  const content = fs.readFileSync(path.join(catDir, f), 'utf8');
+                  const match = content.match(/\*\*Last Synced:\*\* (.+)/);
+                  if (match) syncInfo = ` _(${match[1].substring(0, 10)})_`;
+                } catch {}
+                indexMd += `- [${tableName}](./${cat}/${f})${syncInfo}\n`;
             });
             indexMd += `\n`;
         }
