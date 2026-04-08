@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/jeffe/.claude/**)",
+      "Read(//c/Users/jeffe/AppData//**)",
+      "Read(//c/Users/jeffe/AppData/**)",
+      "Bash(/dev/null find:*)",
+      "Bash(timeout 5 node index.js)",
+      "Bash(find /c/Users/jeffe/AppData/Roaming/Claude -name *.json)",
+      "Read(//c/Users/jeffe//**)",
+      "Bash(ls /c/servicenow-mcp/servicenow-mcp/.env*)",
+      "Bash(taskkill //F //IM \"Claude.exe\")",
+      "Bash(start \"\" \"C:/Users/jeffe/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalApp/Claude.exe\")",
+      "Bash(explorer.exe \"shell:appsFolder\\\\Claude_pzs8sxrjxfjjc!Claude\")",
+      "Bash(wc -l /c/servicenow-mcp/servicenow-mcp/tools/*.js /c/servicenow-mcp/servicenow-mcp/*.js)",
+      "Bash(grep -r \"handleKnowledgeTool\\\\|handleCatalogTool\\\\|handleScriptTool\" /c/servicenow-mcp/servicenow-mcp/*.js)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\" /c/servicenow-mcp/servicenow-mcp/*.js /c/servicenow-mcp/servicenow-mcp/tools/*.js)",
+      "Bash(ls -lh /c/servicenow-mcp/servicenow-mcp/knowledge/*/**.md)",
+      "Bash(done)",
+      "Bash(wc -l /c/servicenow-mcp/servicenow-mcp/harvest*.js)",
+      "Bash(grep -c \"harvestList\\\\|harvestCustomDynamic\\\\|harvestAllFromQuery\" /c/servicenow-mcp/servicenow-mcp/harvest*.js)",
+      "Bash(grep -r \"McpServer\\\\|export.*class.*Server\\\\|deprecated\" c:/servicenow-mcp/servicenow-mcp/node_modules/@modelcontextprotocol/sdk/dist/ --include=*.js -l)",
+      "Bash(grep -r \"export.*McpServer\\\\|class McpServer\" c:/servicenow-mcp/servicenow-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/ --include=*.js)",
+      "Bash(wc -l /c/servicenow-mcp/servicenow-mcp/tools/*.js)",
+      "Bash(node --test test/*.test.js)",
+      "Bash(ls \"c:/servicenow-mcp/servicenow-mcp/\"*.md)",
+      "Bash(ls \"c:/servicenow-mcp/servicenow-mcp/dashboard/\"*.md)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\jeffe\\AppData\\Local\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude",
+      "c:\\servicenow-mcp\\servicenow-mcp\\test",
+      "C:\\Users\\jeffe\\.claude\\projects\\c--servicenow-mcp-servicenow-mcp\\memory"
+    ]
+  }
+}

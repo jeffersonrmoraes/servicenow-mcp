@@ -4,7 +4,27 @@
       "Bash(node harvest_main.js)",
       "Bash(node harvest_portal.js)",
       "Bash(node harvest_enrichment.js)",
-      "Bash(node harvest_flow_portal_ux.js)"
+      "Bash(node harvest_flow_portal_ux.js)",
+      "Read(//c/Users/jeffe/AppData/Roaming/Claude/**)",
+      "Read(//c/servicenow-mcp/servicenow-mcp/$APPDATA/Claude/**)",
+      "Read(//c/servicenow-mcp/servicenow-mcp/$APPDATA/**)",
+      "Read(//c/servicenow-mcp/servicenow-mcp/$APPDATA/Roaming/**)",
+      "Bash(curl -s -X POST \"https://dev343269.service-now.com/api/now/table/sys_update_set\" -u \"admin:EYf5fZaY6^-h\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"Smart Onboarding AI v1.0\"\"\"\",\"\"\"\"description\"\"\"\":\"\"\"\"Implementacao completa da aplicacao Smart Onboarding AI\"\"\"\",\"\"\"\"state\"\"\"\":\"\"\"\"in progress\"\"\"\"}')",
+      "Bash(curl -s -X POST \"https://dev343269.service-now.com/api/now/table/sys_update_set\" -u \"admin:EYf5fZaY6^-h\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"\"name\"\":\"\"Smart Onboarding AI v1.0\"\",\"\"description\"\":\"\"Implementacao completa da aplicacao Smart Onboarding AI\"\",\"\"state\"\":\"\"in progress\"\"}')",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(node generate_pdf.mjs)",
+      "Bash(node gen_pdf.mjs)",
+      "Bash(node tmp_fix_ui.js)",
+      "Bash(node tmp_fix_ui2.js)",
+      "Bash(node tmp_harvest_ui.js)",
+      "Bash(node tmp_status.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -u \"admin:EYf5fZaY6^-h\" \"https://dev343269.service-now.com/api/now/table/sys_ui_view?sysparm_limit=1\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -u 'admin:EYf5fZaY6^-h' 'https://dev343269.service-now.com/api/now/table/sys_ui_view?sysparm_limit=1')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" 'https://dev343269.service-now.com/')",
+      "Bash(npm run:*)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" -u 'admin:UtQ84uJp=a^U' 'https://dev343269.service-now.com/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=user_name')",
+      "Bash(node -e ':*)"
     ]
   }
 }

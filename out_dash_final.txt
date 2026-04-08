@@ -1,2 +1,0 @@
-[36m🚀 MCP Dashboard rodando em http://localhost:3000[0m
-^C

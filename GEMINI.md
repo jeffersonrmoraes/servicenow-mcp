@@ -106,3 +106,75 @@ O repositório utiliza uma pasta `knowledge/` para armazenar o esquema da instâ
 7. **Testes**: Ao adicionar nova lib em `lib/`, crie o teste correspondente em `test/`. Rode `npm test` antes de commitar.
 8. **Async I/O**: Nunca use `fs.writeFileSync` ou `fs.readFileSync` no dashboard — use sempre `fs.promises.*`.
 
+---
+
+## 🏗️ Aplicação de Referência — Smart Onboarding AI
+
+Aplicação completa implementada via REST API diretamente no PDI `dev343269.service-now.com`. Serve como referência para desenvolvimento de apps ServiceNow via MCP.
+
+### Componentes implementados
+
+| Componente | Tipo | Nome/Tabela |
+|-----------|------|-------------|
+| Tabela de Requisições | Table (extends task) | `u_x_smart_onboarding_request` |
+| Tabela de Tarefas | Table (extends task) | `u_x_smart_onboarding_task` |
+| Script Include | OnboardingLogger | Logging centralizado |
+| Script Include | OnboardingValidator | Validação de payloads |
+| Script Include | OnboardingRuleEngine | Orquestrador de tarefas por departamento |
+| Business Rule | CreateTasksOnInsert | After Insert → chama RuleEngine |
+| Client Script | DepartmentOnChange | onChange → filtra campos por departamento |
+| UI Policy | RequireEmailForIT | Torna email obrigatório para dept IT |
+| Scripted REST API | smart_onboarding | `POST /api/1964763/smart_onboarding/request` |
+| Form Layout | Default view | 2 seções para request, 1 para task |
+| List Columns | Default view | 5 colunas por tabela |
+| Nav Menu | Smart Onboarding AI | 3 módulos: list request, list task, new request |
+
+### Campos das tabelas (escopo global — prefixo `u_`)
+
+**u_x_smart_onboarding_request**
+- `u_employee_name` (string) — nome do funcionário
+- `u_employee_email` (string) — email
+- `u_department` (choice) — IT / HR / Finance
+- `u_start_date` (date)
+- `u_status` (choice) — Draft / In Progress / Completed
+- `u_notes` (string)
+- `short_description` — herdado de task (obrigatório para insert)
+
+**u_x_smart_onboarding_task**
+- `u_task_name` (string) — nome da tarefa
+- `u_request` (reference → u_x_smart_onboarding_request)
+- `u_status` (choice) — Pending / In Progress / Done
+- `u_assigned_to` (reference → sys_user)
+- `short_description` — herdado de task (obrigatório para insert)
+
+### Endpoint REST
+
+```
+POST https://dev343269.service-now.com/api/1964763/smart_onboarding/request
+Content-Type: application/json
+Authorization: Basic <base64>
+
+{
+  "employee_name":  "João Silva",
+  "employee_email": "joao@empresa.com",
+  "department":     "IT",
+  "start_date":     "2026-04-01"
+}
+```
+
+Resposta 201 (criado) | 409 (duplicata ativa) | 422 (payload inválido)
+
+### Lições aprendidas (para futuros desenvolvimentos)
+
+1. Campos em escopo global sempre exigem prefixo `u_` — checar antes de qualquer script
+2. Tabelas herdando de `task` exigem `short_description` para insert funcionar
+3. `sys_ui_section.title` é booleano; o label da seção fica em `caption`
+4. `sys_ui_section.view` e `sys_ui_list.view` exigem sys_id, não string "Default view"
+5. `sys_ui_list_element` sem `list_id` é orphan — sempre criar o pai `sys_ui_list` primeiro
+6. Namespace de Scripted REST API é gerado automaticamente — descobrir via `sys_ws_definition`
+7. Choices criadas com `element` errado (sem `u_`) não aparecem no form — sempre usar o nome real do campo
+8. Queries `sysparm_query` com vírgulas nos valores **devem** usar `encodeURIComponent` — vírgulas cruas quebram o filtro silenciosamente e podem causar deleções em massa
+9. `sys_ui_element` **não tem campo `name`** — queries `name=tabela` ignoram o filtro e retornam todos os registros. Filtrar sempre por `sys_ui_section=<sys_id>`
+10. `view_name` em `sys_ui_section` / `sys_ui_list` **não é auto-populado** via REST API — deve ser setado explicitamente como `"Default view"` ou o form renderer não localiza as seções/listas
+11. Após criar/alterar form layout via REST, limpar o cache com `GET /cache.do` (espera redirect 302)
+
