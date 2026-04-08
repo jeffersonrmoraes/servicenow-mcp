@@ -71,7 +71,9 @@ export const frontendTools = [
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-export async function handleFrontendTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handleFrontendTool(name: string, args: any) {
   const env = args.env || null;
 
   if (name === "sn_manage_widget") {

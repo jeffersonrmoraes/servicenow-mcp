@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkRateLimit } from "../lib/ratelimit.js";
+import { checkRateLimit } from "../src/lib/ratelimit.js";
 
 test("ratelimit: permite chamadas dentro do limite", async () => {
   for (let i = 0; i < 10; i++) {

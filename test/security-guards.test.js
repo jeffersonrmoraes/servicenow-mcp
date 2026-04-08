@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleSecurityTool } from "../tools/security.js";
+import { handleSecurityTool } from "../src/tools/security.js";
 
 // Mock do lib/client.js — substituído por um módulo que retorna resultados vazios
 // Como ESM não suporta mock nativo sem loaders, testamos o comportamento de erro

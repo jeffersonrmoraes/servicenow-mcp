@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = 3000;
-const envPath = path.resolve(__dirname, '../.env');
+const envPath = path.resolve(__dirname, '../../.env');
 
 app.use(cors());
 app.use(express.json());
@@ -17,9 +17,9 @@ app.use(express.static(path.join(__dirname, './public')));
 //  Helpers
 // ─────────────────────────────────────────────
 
-function parseEnvFile() {
+function parseEnvFile(): Record<string, string> {
   if (!fs.existsSync(envPath)) return {};
-  return fs.readFileSync(envPath, 'utf8').split('\n').reduce((acc, line) => {
+  return fs.readFileSync(envPath, 'utf8').split('\n').reduce((acc: Record<string, string>, line: string) => {
     const idx = line.indexOf('=');
     if (idx !== -1) {
       const key = line.substring(0, idx).trim();
@@ -30,16 +30,17 @@ function parseEnvFile() {
   }, {});
 }
 
-async function saveEnvFile(data) {
+async function saveEnvFile(data: Record<string, string>) {
   const content = Object.entries(data)
     .filter(([k, v]) => k && v)
     .map(([k, v]) => `${k}=${v}`)
     .join('\n');
   await fs.promises.writeFile(envPath, content, 'utf8');
+  // Ativa as novas variáveis no processo atual
   Object.assign(process.env, data);
 }
 
-function resolveSnUrl(instance) {
+function resolveSnUrl(instance: string): string {
   return instance.startsWith('http') ? instance : `https://${instance}.service-now.com`;
 }
 
@@ -47,25 +48,25 @@ function resolveSnUrl(instance) {
 //  Endpoints da API
 // ─────────────────────────────────────────────
 
-// Ler o .env (apenas o arquivo — sem expor process.env)
-app.get('/api/env', (_req, res) => {
+// Ler o .env
+app.get('/api/env', (_req: Request, res: Response) => {
   const env = parseEnvFile();
   res.json(env);
 });
 
 // Salvar no .env
-app.post('/api/env', async (req, res) => {
+app.post('/api/env', async (req: Request, res: Response) => {
   try {
     await saveEnvFile(req.body);
     res.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).json({ error: `Falha ao salvar configurações: ${err.message}` });
   }
 });
 
 // OAuth 1: Redirecionar para ServiceNow
-app.get('/api/auth/:prefix', (req, res) => {
-  const prefix = req.params.prefix.toUpperCase();
+app.get('/api/auth/:prefix', (req: Request, res: Response) => {
+  const prefix = (req.params.prefix as string).toUpperCase();
   const envPrefix = prefix === 'DEFAULT' ? '' : `${prefix}_`;
   const allEnv = parseEnvFile();
 
@@ -83,8 +84,9 @@ app.get('/api/auth/:prefix', (req, res) => {
 });
 
 // OAuth 2: Callback para trocar code por token
-app.get('/api/callback', async (req, res) => {
-  const { code, state: prefix } = req.query;
+app.get('/api/callback', async (req: Request, res: Response) => {
+  const code = req.query.code as string;
+  const prefix = req.query.state as string;
   const envPrefix = prefix === 'DEFAULT' ? '' : `${prefix}_`;
 
   if (!code) return res.status(400).send('Erro: Code não recebido.');
@@ -92,17 +94,19 @@ app.get('/api/callback', async (req, res) => {
   try {
     const allEnv = parseEnvFile();
 
-    const instance = allEnv[`${envPrefix}SN_INSTANCE`] || process.env[`${envPrefix}SN_INSTANCE`];
-    const clientId = allEnv[`${envPrefix}SN_CLIENT_ID`] || process.env[`${envPrefix}SN_CLIENT_ID`];
-    const clientSecret = allEnv[`${envPrefix}SN_CLIENT_SECRET`] || process.env[`${envPrefix}SN_CLIENT_SECRET`];
+    const instance = allEnv[`${envPrefix}SN_INSTANCE`] || (process.env[`${envPrefix}SN_INSTANCE`] as string);
+    const clientId = allEnv[`${envPrefix}SN_CLIENT_ID`] || (process.env[`${envPrefix}SN_CLIENT_ID`] as string);
+    const clientSecret = allEnv[`${envPrefix}SN_CLIENT_SECRET`] || (process.env[`${envPrefix}SN_CLIENT_SECRET`] as string);
+
+    if (!instance) return res.status(400).send(`Erro: SN_INSTANCE não encontrada para ${prefix}`);
 
     const snUrl = resolveSnUrl(instance);
     const redirectUri = `http://localhost:${port}/api/callback`;
 
     const tokenParams = new URLSearchParams({
       grant_type:    'authorization_code',
-      client_id:     clientId,
-      client_secret: clientSecret,
+      client_id:     clientId!,
+      client_secret: clientSecret!,
       redirect_uri:  redirectUri,
       code,
     });
@@ -113,7 +117,7 @@ app.get('/api/callback', async (req, res) => {
       body: tokenParams.toString(),
     });
 
-    const tokenData = await tokenRes.json();
+    const tokenData: any = await tokenRes.json();
 
     if (tokenData.access_token) {
       allEnv[`${envPrefix}SN_OAUTH_ACCESS_TOKEN`] = tokenData.access_token;
@@ -123,19 +127,19 @@ app.get('/api/callback', async (req, res) => {
     } else {
       res.status(500).send(`Erro na troca de token: ${JSON.stringify(tokenData)}`);
     }
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).send(`Erro interno no callback: ${err.message}`);
   }
 });
 
 // Testar conexão com ServiceNow
-app.post('/api/test', async (req, res) => {
+app.post('/api/test', async (req: Request, res: Response) => {
   const { instance, user, password, oauth_token } = req.body;
 
   if (!instance) return res.status(400).json({ error: 'Instância necessária' });
 
   const snUrl = resolveSnUrl(instance);
-  const headers = { 'Accept': 'application/json' };
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
 
   if (oauth_token) {
     headers['Authorization'] = `Bearer ${oauth_token}`;
@@ -148,7 +152,7 @@ app.post('/api/test', async (req, res) => {
   try {
     const response = await fetch(`${snUrl}/api/now/table/sys_user?sysparm_limit=1`, { headers });
     res.json(response.ok ? { status: 'connected' } : { status: 'failed', code: response.status });
-  } catch (err) {
+  } catch (err: any) {
     res.json({ status: 'error', message: err.message });
   }
 });

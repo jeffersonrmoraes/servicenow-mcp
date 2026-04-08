@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateTableName, validateSysId, validateLimit } from "../lib/validate.js";
+import { validateTableName, validateSysId, validateLimit } from "../src/lib/validate.js";
 
 // ── validateTableName ─────────────────────────
 

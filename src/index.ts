@@ -22,11 +22,33 @@ import { propertyTools,     handlePropertyTool     } from "./tools/properties.js
 import { frontendTools,     handleFrontendTool     } from "./tools/frontend.js";
 import { bundleTools,       handleBundleTool        } from "./tools/bundle.js";
 import { knowledgeTools,    handleKnowledgeTool    } from "./tools/knowledge.js";
+import { relationshipTools, handleRelationshipTool } from "./tools/relationships.js";
+
+// ─────────────────────────────────────────────
+//  Interfaces (v4.0)
+// ─────────────────────────────────────────────
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: object;
+}
+
+interface ToolHandler {
+  (name: string, args: any): Promise<any>;
+}
+
+interface MCPResource {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+}
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas (v3.9.0)
 // ─────────────────────────────────────────────
-const ALL_TOOLS = [
+const ALL_TOOLS: ToolDefinition[] = [
   ...scriptTools,
   ...catalogTools,
   ...frontendTools,
@@ -37,12 +59,13 @@ const ALL_TOOLS = [
   ...propertyTools,
   ...bundleTools,
   ...knowledgeTools,
+  ...relationshipTools,
 ];
 
 // ─────────────────────────────────────────────
 //  Roteamento O(1) — Map: toolName → handler
 // ─────────────────────────────────────────────
-const toolModules = [
+const toolModules: { tools: ToolDefinition[], handler: ToolHandler }[] = [
   { tools: scriptTools,     handler: handleScriptTool     },
   { tools: catalogTools,    handler: handleCatalogTool    },
   { tools: frontendTools,   handler: handleFrontendTool   },
@@ -53,9 +76,10 @@ const toolModules = [
   { tools: propertyTools,   handler: handlePropertyTool   },
   { tools: bundleTools,     handler: handleBundleTool     },
   { tools: knowledgeTools,  handler: handleKnowledgeTool  },
+  { tools: relationshipTools, handler: handleRelationshipTool },
 ];
 
-const HANDLER_MAP = new Map();
+const HANDLER_MAP = new Map<string, ToolHandler>();
 for (const { tools, handler } of toolModules) {
   for (const tool of tools) {
     HANDLER_MAP.set(tool.name, handler);
@@ -72,8 +96,8 @@ const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
  * Varre o diretório knowledge/ e retorna uma lista de MCP Resources,
  * um por arquivo Markdown de schema de tabela.
  */
-function buildKnowledgeResources() {
-  const resources = [];
+function buildKnowledgeResources(): MCPResource[] {
+  const resources: MCPResource[] = [];
   if (!fs.existsSync(KNOWLEDGE_DIR)) return resources;
 
   const categories = fs.readdirSync(KNOWLEDGE_DIR).filter(
@@ -136,9 +160,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
-  } catch (err) {
+  } catch (err: any) {
     return {
-      content: [{ type: "text", text: `Erro: ${err.message}` }],
+      content: [{ type: "text", text: `Erro: ${err.message || String(err)}` }],
       isError: true,
     };
   }

@@ -64,7 +64,9 @@ export const attachmentTools = [
 //  HANDLER
 // ─────────────────────────────────────────────
 
-export async function handleAttachmentTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handleAttachmentTool(name: string, args: any) {
   const env = args.env || null;
 
   // ── Upload ───────────────────────────────────

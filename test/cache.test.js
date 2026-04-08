@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cacheGet, cacheSet, cacheInvalidate, cacheClear } from "../lib/cache.js";
+import { cacheGet, cacheSet, cacheInvalidate, cacheClear } from "../src/lib/cache.js";
 
 test("cache: retorna undefined para chave inexistente", () => {
   assert.equal(cacheGet("chave-inexistente"), undefined);

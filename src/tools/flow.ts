@@ -95,7 +95,9 @@ export const flowTools = [
 //  HANDLERS — Flow Designer
 // ─────────────────────────────────────────────
 
-export async function handleFlowTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handleFlowTool(name: string, args: any) {
   switch (name) {
 
     case "sn_get_flow": {

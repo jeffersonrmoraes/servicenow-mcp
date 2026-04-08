@@ -23,7 +23,9 @@ export const bundleTools = [
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-export async function handleBundleTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handleBundleTool(name: string, args: any) {
   const env = args.env || null;
 
   if (name === "sn_get_catalog_item_bundle") {
@@ -58,7 +60,7 @@ export async function handleBundleTool(name, args) {
         active: item.active,
         sys_id: item.sys_id
       },
-      variables: variables.map(v => ({
+      variables: variables.map((v: any) => ({
         name: v.name,
         label: v.question_text,
         type: v.type,

@@ -63,7 +63,9 @@ export const propertyTools = [
 //  HANDLER
 // ─────────────────────────────────────────────
 
-export async function handlePropertyTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handlePropertyTool(name: string, args: any) {
   const env = args.env || null;
 
   // ── Get ──────────────────────────────────────

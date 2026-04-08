@@ -192,10 +192,35 @@ export const scriptTools = [
 ];
 
 // ─────────────────────────────────────────────
+//  Interfaces (v4.0)
+// ─────────────────────────────────────────────
+
+interface MetadataPayload {
+  active: boolean;
+  name?: string;
+  collection?: string;
+  when?: string;
+  script?: string;
+  action_insert?: boolean;
+  action_update?: boolean;
+  action_delete?: boolean;
+  action_query?: boolean;
+  condition?: string;
+  api_name?: string;
+  client_callable?: boolean;
+  table?: string;
+  type?: string;
+  field_name?: string;
+  short_description?: string;
+  conditions?: string;
+  run_type?: string;
+}
+
+// ─────────────────────────────────────────────
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-export async function handleScriptTool(name, args) {
+export async function handleScriptTool(name: string, args: any) {
   const env = args.env || null;
 
   switch (name) {
@@ -249,12 +274,12 @@ export async function handleScriptTool(name, args) {
 
       // 2. Atualizar cada registro
       const results = await Promise.allSettled(
-        records.map(r => snPatch(`/api/now/table/${args.table}/${r.sys_id}`, args.data, env))
+        records.map((r: any) => snPatch(`/api/now/table/${args.table}/${r.sys_id}`, args.data, env))
       );
 
       const succeeded = results.filter(r => r.status === "fulfilled").length;
-      const failed    = results.filter(r => r.status === "rejected").map(
-        (r, i) => ({ sys_id: records[i].sys_id, reason: r.reason?.message })
+      const failed    = results.filter((r: any) => r.status === "rejected").map(
+        (r: any, i: number) => ({ sys_id: records[i].sys_id, reason: r.reason?.message })
       );
 
       return {
@@ -316,7 +341,7 @@ export async function handleScriptTool(name, args) {
     case "sn_upsert_metadata_script": {
       const { type, sys_id, ...data } = args;
       let finalTable = "";
-      let payload = {
+      let payload: MetadataPayload = {
         active: data.active !== false
       };
 
@@ -388,8 +413,8 @@ export async function handleScriptTool(name, args) {
           scope:  args.scope || "global",
         }, env);
         return result;
-      } catch (err) {
-        if (err.message.includes("404") || err.message.includes("400")) {
+      } catch (err: any) {
+        if (err.message && (err.message.includes("404") || err.message.includes("400"))) {
           throw new Error(
             "O endpoint de execução de scripts não está disponível nesta instância.\n\n" +
             "SETUP NECESSÁRIO: Crie uma Scripted REST API no ServiceNow:\n" +

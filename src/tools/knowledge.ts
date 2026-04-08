@@ -3,13 +3,41 @@ import fs from 'fs';
 import path from 'path';
 
 // ─────────────────────────────────────────────
-//  TOOLS — Knowledge Harvester (v3.9.0)
+//  Interfaces (v4.0)
+// ─────────────────────────────────────────────
+
+interface SyncState {
+  [env: string]: {
+    [category: string]: string; // ISO Timestamp
+  };
+}
+
+interface ServiceNowTable {
+  name: string;
+  label: string;
+  sys_id: string;
+  super_class: {
+    display_value: string;
+    value: string;
+  };
+}
+
+interface ServiceNowColumn {
+  element: string;
+  column_label: string;
+  internal_type: string | { display_value: string; value: string };
+  reference: string | { display_value: string; value: string };
+  mandatory: string | boolean;
+}
+
+// ─────────────────────────────────────────────
+//  TOOLS — Knowledge Harvester (v4.0)
 // ─────────────────────────────────────────────
 
 export const knowledgeTools = [
   {
     name: "sn_sync_knowledge_base",
-    description: "Sincroniza metadados da instância (tabelas, campos e relacionamentos) em arquivos Markdown locais.",
+    description: "Sincroniza metadados da instância (tabelas, campos e relacionamentos). Agora incremental (v4.0).",
     inputSchema: {
       type: "object",
       properties: {
@@ -18,6 +46,7 @@ export const knowledgeTools = [
         category:      { type: "string", enum: ["CORE", "CUSTOM", "SYSTEM"], default: "CUSTOM" },
         limit:         { type: "number", description: "Máximo de tabelas a processar nesta rodada", default: 10 },
         offset:        { type: "number", description: "Offset para paginação do crawl", default: 0 },
+        force:         { type: "boolean", description: "Ignorar modo incremental e forçar sync completo", default: false },
       },
       required: ["category"],
     },
@@ -28,17 +57,31 @@ export const knowledgeTools = [
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-export async function handleKnowledgeTool(name, args) {
-  const env = args.env || null;
+export async function handleKnowledgeTool(name: string, args: any) {
+  const env = args.env || "default";
 
   switch (name) {
     case "sn_sync_knowledge_base": {
       const table_pattern = args.table_pattern || "*";
-      const category = args.category || "CUSTOM";
+      const category = (args.category || "CUSTOM").toUpperCase();
       const limit = args.limit || 10;
       const offset = args.offset || 0;
+      const force = !!args.force;
 
-      // 1. Determinar filtros por categoria
+      const knowledgeDir = path.resolve(process.cwd(), `knowledge`);
+      const stateFile = path.join(knowledgeDir, "state.json");
+      
+      // 1. Carregar Estado Incremental
+      let state: SyncState = {};
+      try {
+        if (fs.existsSync(stateFile)) {
+          state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        }
+      } catch {}
+
+      const lastSync = !force && state[env] && state[env][category] ? state[env][category] : null;
+
+      // 2. Determinar filtros
       let query = "nameISNOTEMPTY";
       if (category === "CUSTOM") query += "^nameSTARTSWITHu_^ORnameSTARTSWITHx_";
       if (category === "SYSTEM") query += "^nameSTARTSWITHsys_";
@@ -46,49 +89,54 @@ export async function handleKnowledgeTool(name, args) {
 
       if (table_pattern && table_pattern !== "*") {
         if (table_pattern.includes("*")) {
-          query += `^nameLIKE${table_pattern.replace("*", "")}`;
+          query += `^nameLIKE${table_pattern.replace(/\*/g, "")}`;
         } else {
           query += `^name=${table_pattern}`;
         }
       }
 
-      // 2. Buscar lista de tabelas (sys_db_object)
-      const { result: tables } = await snGet("/api/now/table/sys_db_object", {
+      // Filtro Incremental (v4.0)
+      if (lastSync) {
+        query += `^sys_updated_on>=${lastSync.replace(".000Z", "").replace("T", " ")}`;
+      }
+
+      // 3. Buscar lista de tabelas
+      const response = await snGet("/api/now/table/sys_db_object", {
         sysparm_query: query + "^ORDERBYname",
         sysparm_limit: limit,
         sysparm_offset: offset,
-        sysparm_fields: "name,label,sys_id,super_class"
+        sysparm_fields: "name,label,sys_id,super_class,sys_updated_on"
       }, env);
+      
+      const tables: ServiceNowTable[] = response.result || [];
 
       if (!tables || tables.length === 0) {
-        return { message: `Nenhuma tabela encontrada para o critério: ${query}`, count: 0 };
+        return { message: `Tudo atualizado! Nenhuma mudança desde ${lastSync || "o início"}.`, count: 0 };
       }
 
-      const results = [];
-      const knowledgeDir = path.resolve(process.cwd(), `knowledge/${category.toLowerCase()}`);
+      const results: string[] = [];
+      const categoryDir = path.join(knowledgeDir, category.toLowerCase());
       const syncTimestamp = new Date().toISOString();
 
-      try {
-        if (!fs.existsSync(knowledgeDir)) {
-          fs.mkdirSync(knowledgeDir, { recursive: true });
-        }
-      } catch (e) {
-        return { status: "error", message: `Falha ao criar diretório ${knowledgeDir}: ${e.message}` };
+      if (!fs.existsSync(categoryDir)) {
+        fs.mkdirSync(categoryDir, { recursive: true });
       }
 
       for (const table of tables) {
-        // 3. Buscar colunas (sys_dictionary)
-        const { result: columns } = await snGet("/api/now/table/sys_dictionary", {
-            sysparm_query: `name=${table.name}^ORname=${table.super_class.value || "nothing"}^active=true`,
+        // 4. Buscar colunas
+        const colResponse = await snGet("/api/now/table/sys_dictionary", {
+            sysparm_query: `name=${table.name}^ORname=${table.super_class?.value || "nothing"}^active=true`,
             sysparm_fields: "element,column_label,internal_type,reference,mandatory,default_value,max_length"
         }, env);
+        
+        const columns: ServiceNowColumn[] = colResponse.result || [];
 
-        // 4. Gerar Markdown com timestamp de sincronização
+        // 5. Gerar Markdown
         let md = `# ServiceNow Table: ${table.label} (${table.name})\n\n`;
         md += `**Category:** ${category}\n`;
         md += `**SysID:** ${table.sys_id}\n`;
         md += `**Last Synced:** ${syncTimestamp}\n`;
-        if (table.super_class.display_value) {
+        if (table.super_class?.display_value) {
             md += `**Extends:** ${table.super_class.display_value}\n`;
         }
         md += `\n## Schema Definition\n\n`;
@@ -97,38 +145,42 @@ export async function handleKnowledgeTool(name, args) {
 
         columns.forEach(col => {
             if (!col.element) return;
-            const typeValue = typeof col.internal_type === 'object' ? (col.internal_type.display_value || col.internal_type.value) : col.internal_type;
-            const refValue  = typeof col.reference === 'object'     ? (col.reference.display_value  || col.reference.value  || "-") : (col.reference || "-");
+            const typeValue = typeof col.internal_type === 'object' ? col.internal_type.display_value : col.internal_type;
+            const refValue  = typeof col.reference === 'object'     ? (col.reference.display_value || col.reference.value || "-") : (col.reference || "-");
             const mandatory = col.mandatory === "true" || col.mandatory === true ? "✅" : "-";
             md += `| \`${col.element}\` | ${col.column_label} | ${typeValue} | ${refValue} | ${mandatory} |\n`;
         });
 
-        md += `\n\n---\n*Synced by ServiceNow MCP v3.9.0 on ${syncTimestamp}*`;
+        md += `\n\n---\n*Synced by ServiceNow MCP v4.0.0 on ${syncTimestamp}*`;
 
         try {
-          fs.writeFileSync(path.join(knowledgeDir, `${table.name}.md`), md, 'utf8');
+          fs.writeFileSync(path.join(categoryDir, `${table.name}.md`), md, 'utf8');
           results.push(table.name);
-        } catch (e) {
+        } catch (e: any) {
           results.push(`ERROR:${table.name}:${e.message}`);
         }
       }
 
-      // 5. Atualizar INDEX.md com timestamps
+      // 6. Atualizar Estado e Índice
+      if (!state[env]) state[env] = {};
+      state[env][category] = syncTimestamp;
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), "utf8");
+
       await updateIndex(process.cwd());
 
       return {
         status: "success",
         processed_count: results.length,
+        incremental: !!lastSync,
         tables: results,
-        synced_at: syncTimestamp,
-        path: `knowledge/${category.toLowerCase()}/`
+        synced_at: syncTimestamp
       };
     }
     default: return null;
   }
 }
 
-async function updateIndex(baseDir) {
+async function updateIndex(baseDir: string) {
     const knowledgeRoot = path.join(baseDir, 'knowledge');
     if (!fs.existsSync(knowledgeRoot)) return;
 

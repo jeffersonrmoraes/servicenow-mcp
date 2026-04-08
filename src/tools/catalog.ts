@@ -71,7 +71,9 @@ export const catalogTools = [
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-export async function handleCatalogTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handleCatalogTool(name: string, args: any) {
   const env = args.env || null;
 
   if (name === "sn_manage_catalog_item") {

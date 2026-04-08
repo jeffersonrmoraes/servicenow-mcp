@@ -1,10 +1,8 @@
-// ─────────────────────────────────────────────
-//  ServiceNow HTTP Client (Multi-Instance)
-// ─────────────────────────────────────────────
 import { cacheGet, cacheSet, cacheInvalidate } from "./cache.js";
 import { checkRateLimit } from "./ratelimit.js";
+import { ServiceNowContext, ServiceNowEnv } from "../types.js";
 
-export const getContext = (env) => {
+export const getContext = (env: ServiceNowEnv): ServiceNowContext => {
   const prefix = env ? `${env.toUpperCase()}_` : "";
   let instance = process.env[`${prefix}SN_INSTANCE`] || process.env.SN_INSTANCE;
   const user      = process.env[`${prefix}SN_USER`]     || process.env.SN_USER;
@@ -25,7 +23,7 @@ export const getContext = (env) => {
     instance = `https://${instance}.service-now.com`;
   }
 
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Accept":       "application/json",
   };
@@ -40,20 +38,15 @@ export const getContext = (env) => {
   return { instance, user: user || "OAuth_User", headers };
 };
 
-export function getEnvUser(env) {
+export function getEnvUser(env: ServiceNowEnv): string {
   return getContext(env).user;
 }
 
 /**
  * Invalida o cache do registro específico E da listagem da tabela pai.
- * Ex: PATCH /api/now/table/incident/abc123 → invalida:
- *   - caches contendo /api/now/table/incident/abc123
- *   - caches contendo /api/now/table/incident (listagens)
  */
-function invalidateRelatedCaches(path) {
+function invalidateRelatedCaches(path: string) {
   cacheInvalidate(path);
-  // Se o path aponta para um registro específico (termina com sys_id),
-  // também invalida a listagem da tabela pai
   const parts = path.split("/");
   if (parts.length > 5) {
     const tablePath = parts.slice(0, -1).join("/");
@@ -61,11 +54,13 @@ function invalidateRelatedCaches(path) {
   }
 }
 
-export async function snGet(path, params = {}, env = null) {
+export async function snGet(path: string, params: Record<string, string | number | undefined> = {}, env: ServiceNowEnv = null) {
   await checkRateLimit(env);
   const ctx = getContext(env);
   const url = new URL(`${ctx.instance}${path}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined) url.searchParams.set(k, String(v));
+  });
 
   const cacheKey = `${env || "default"}:${url.toString()}`;
   const cached = cacheGet(cacheKey);
@@ -78,7 +73,7 @@ export async function snGet(path, params = {}, env = null) {
   return data;
 }
 
-export async function snPost(path, body, env = null) {
+export async function snPost(path: string, body: any, env: ServiceNowEnv = null) {
   await checkRateLimit(env);
   const ctx = getContext(env);
   const res = await fetch(`${ctx.instance}${path}`, {
@@ -91,7 +86,7 @@ export async function snPost(path, body, env = null) {
   return res.json();
 }
 
-export async function snPatch(path, body, env = null) {
+export async function snPatch(path: string, body: any, env: ServiceNowEnv = null) {
   await checkRateLimit(env);
   const ctx = getContext(env);
   const res = await fetch(`${ctx.instance}${path}`, {
@@ -104,7 +99,7 @@ export async function snPatch(path, body, env = null) {
   return res.json();
 }
 
-export async function snDelete(path, env = null) {
+export async function snDelete(path: string, env: ServiceNowEnv = null) {
   await checkRateLimit(env);
   const ctx = getContext(env);
   const res = await fetch(`${ctx.instance}${path}`, {
@@ -116,18 +111,12 @@ export async function snDelete(path, env = null) {
   return { deleted: true };
 }
 
-// ─────────────────────────────────────────────
-//  Binary helpers — Attachment API
-// ─────────────────────────────────────────────
-
 /**
  * Upload de arquivo binário (Base64 → Buffer) para a Attachment API do ServiceNow.
- * Content-Type é definido pelo caller (ex: image/png, text/plain).
  */
-export async function snPostBinary(path, bufferContent, contentType, env = null) {
+export async function snPostBinary(path: string, bufferContent: Buffer, contentType: string, env: ServiceNowEnv = null) {
   const ctx = getContext(env);
-  // Remove o header application/json para o upload binário
-  const binaryHeaders = {
+  const binaryHeaders: Record<string, string> = {
     "Accept":        "application/json",
     "Authorization": ctx.headers["Authorization"],
     "Content-Type":  contentType,
@@ -135,7 +124,7 @@ export async function snPostBinary(path, bufferContent, contentType, env = null)
   const res = await fetch(`${ctx.instance}${path}`, {
     method:  "POST",
     headers: binaryHeaders,
-    body:    bufferContent,
+    body:    bufferContent as any,
   });
   if (!res.ok) throw new Error(`POST_BINARY ${path} → ${res.status}: ${await res.text()}`);
   return res.json();
@@ -143,9 +132,8 @@ export async function snPostBinary(path, bufferContent, contentType, env = null)
 
 /**
  * Download de arquivo binário da Attachment API do ServiceNow.
- * Retorna o conteúdo como string Base64.
  */
-export async function snGetBinary(path, env = null) {
+export async function snGetBinary(path: string, env: ServiceNowEnv = null) {
   const ctx = getContext(env);
   const res = await fetch(`${ctx.instance}${path}`, { headers: ctx.headers });
   if (!res.ok) throw new Error(`GET_BINARY ${path} → ${res.status}: ${await res.text()}`);

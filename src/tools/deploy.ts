@@ -60,7 +60,9 @@ export const deployTools = [
 //  HANDLERS — Deploy
 // ─────────────────────────────────────────────
 
-export async function handleDeployTool(name, args) {
+import { ServiceNowEnv } from "../types.js";
+
+export async function handleDeployTool(name: string, args: any) {
   switch (name) {
 
     case "sn_create_update_set": {
