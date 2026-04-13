@@ -64,7 +64,7 @@ export const extraTools = [
   // ── Email Templates ───────────────────────────
   {
     name: "sn_manage_email_template",
-    description: "Gerencia templates de email reutilizáveis (sys_email_template). Permite criar, atualizar e listar templates.",
+    description: "Gerencia templates de email reutilizáveis (sysevent_email_template). Permite criar, atualizar e listar templates.",
     inputSchema: {
       type: "object",
       properties: {
@@ -196,11 +196,11 @@ export async function handleExtraTool(name: string, args: any) {
 
     if (action === "get") {
       if (sys_id) {
-        const { result } = await snGet(`/api/now/table/sys_email_template/${sys_id}`, {}, env);
+        const { result } = await snGet(`/api/now/table/sysevent_email_template/${sys_id}`, {}, env);
         return result;
       }
       if (data.name) {
-        const { result } = await snGet("/api/now/table/sys_email_template", {
+        const { result } = await snGet("/api/now/table/sysevent_email_template", {
           sysparm_query: `name=${encodeQueryParam(data.name)}`,
           sysparm_limit: 1,
         }, env);
@@ -212,7 +212,7 @@ export async function handleExtraTool(name: string, args: any) {
 
     if (action === "list") {
       const limit = data.limit ? validateLimit(data.limit) : 20;
-      const { result } = await snGet("/api/now/table/sys_email_template", {
+      const { result } = await snGet("/api/now/table/sysevent_email_template", {
         sysparm_query:  "nameISNOTEMPTY",
         sysparm_fields: "sys_id,name,subject,active,sys_updated_on",
         sysparm_limit:  limit,
@@ -223,7 +223,7 @@ export async function handleExtraTool(name: string, args: any) {
 
     if (action === "upsert") {
       const importanceMap: Record<string, string> = { low: "3", normal: "2", high: "1" };
-      return upsertRecord("sys_email_template", sys_id, {
+      return upsertRecord("sysevent_email_template", sys_id, {
         name:        data.name,
         subject:     data.subject || "",
         message_html: data.body_html || "",
