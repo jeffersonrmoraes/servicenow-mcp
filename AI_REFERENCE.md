@@ -1,61 +1,119 @@
-# Guia de Ferramentas - ServiceNow MCP Server (v3.9.0)
+# Guia de Ferramentas — ServiceNow MCP Server (v4.2.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
 ---
 
-## 🏛️ Convenções Gerais
+## Convenções Gerais
 
-1. **Parâmetro `env`**: Opcional. Use para rotear para instâncias específicas.
-2. **Dashboard Visual**: Use o `npm run dashboard` para gerenciar seus ambientes visualmente antes de começar a codar.
-3. **Knowledge First (v3.8)**: Sempre verifique a pasta `knowledge/` no diretório raiz. Se a tabela que você vai usar estiver documentada lá, use-a como fonte da verdade para nomes de campos e tipos.
-4. **Validação de Inputs (v3.8.1)**: Os campos `table`, `sys_id` e `limit` são validados automaticamente em todas as operações CRUD. Nomes de tabela devem seguir o padrão `[a-zA-Z0-9_]+`. sys_ids devem ter 32 caracteres hexadecimais. Limites devem ser inteiros entre 1 e 1000.
-5. **Cache automático (v3.8.1)**: Todas as chamadas `GET` são cacheadas por 60 segundos por ambiente. Operações de escrita (`POST`, `PATCH`, `DELETE`) invalidam o cache do path afetado (e da tabela pai) automaticamente.
-6. **Rate Limit com Backoff (v3.9.0)**: O servidor limita a 10 chamadas/segundo. Se exceder, ele aguarda automaticamente (backoff) até 5 segundos antes de responder — você não precisa mais implementar retry manualmente.
-7. **MCP Resources (v3.9.0)**: Use os Resources do protocolo (`knowledge://category/table`) para ler o schema de tabelas localmente sem gastar chamadas de API.
-
----
-
-## 🎨 Principais Blocos de Ferramentas
-
-- **IA & Contexto**: `sn_sync_knowledge_base`, `sn_generate_ai_context`.
-- **Front-end & UX**: `sn_manage_widget`, `sn_manage_ui_action`.
-- **Desenvolvimento**: `sn_upsert_metadata_script`, `sn_manage_schema`.
-- **Segurança**: `sn_manage_acl`, `sn_manage_access`.
+1. **Parâmetro `env`**: Opcional em todas as ferramentas. Use para rotear para instâncias específicas configuradas no `.env` com prefixo (ex: `env: "DEV"` usa `DEV_SN_INSTANCE`/`DEV_SN_USER`/`DEV_SN_PASSWORD`).
+2. **Knowledge First**: Sempre verifique os MCP Resources (`knowledge://category/table`) ou a pasta `knowledge/` antes de assumir nomes de campos. Se a tabela estiver documentada, use-a como fonte da verdade.
+3. **Validação automática**: Os campos `table`, `sys_id` e `limit` são validados em todas as operações CRUD. Erros de validação são imediatos — corrija o valor antes de tentar novamente.
+4. **Cache automático**: Todas as chamadas GET são cacheadas por 60 segundos por ambiente. Operações de escrita (POST, PATCH, DELETE) invalidam o cache automaticamente.
+5. **Rate Limit com Backoff**: O servidor limita a 10 chamadas/segundo. Se exceder, aguarda automaticamente (até 5s) — não implemente retry manual.
+6. **MCP Resources**: Use os Resources do protocolo (`knowledge://category/tableName`) para ler schemas de tabelas localmente sem gastar chamadas de API.
+7. **Descoberta de ambientes**: Use `sn_list_envs` para ver quais instâncias estão configuradas antes de começar.
 
 ---
 
-## 💡 Melhores Práticas para a IA
+## Melhores Práticas para a IA
 
-1. **Zero Guesswork**: Se não souber os campos de uma tabela, use `sn_sync_knowledge_base` para sincronizar os metadados antes de tentar inserir ou atualizar registros.
-2. **Validação Visual**: Se estiver criando um Widget, lembre-se que o usuário pode validar a conexão da instância via Dashboard.
-3. **Setup amigável**: Se o usuário tiver problemas de conexão, sugira que ele use o Dashboard (`localhost:3000`) para testar as credenciais.
-4. **Erros de validação**: Se receber erro de `tableName inválido` ou `sys_id inválido`, corrija o valor antes de tentar novamente — não é um erro de rede.
-5. **Rate limit**: O servidor agora faz backoff automático. Se uma chamada demorar mais que o normal, pode ser o rate limit agindo.
-6. **Paginação**: Use o parâmetro `offset` em `sn_query_records` para navegar por grandes volumes de dados.
-7. **Descoberta**: Use `sn_list_envs` para ver quais ambientes estão configurados e prontos para uso.
+1. **Zero Guesswork**: Se não souber os campos de uma tabela, use `sn_sync_knowledge_base` para sincronizar os metadados antes de qualquer insert ou update.
+2. **Diagnóstico de conexão**: Use `sn_health_check` para verificar se as credenciais estão corretas e qual versão do ServiceNow está em uso.
+3. **Datasets grandes**: Use `sn_query_all` (com cursor `next_offset`) em vez de `sn_query_records` com offset manual para datasets acima de 1000 registros.
+4. **Exports**: Use `sn_export_records` para extrair dados em JSON ou CSV para migração ou análise.
+5. **Deploy seguro**: Crie um Update Set com `sn_create_update_set`, defina-o como atual com `sn_set_current_update_set`, faça as alterações, e complete com `sn_complete_update_set`.
+6. **Análise de impacto**: Antes de alterar o schema de uma tabela, use `sn_analyze_impact` para ver quais outras tabelas serão afetadas.
 
 ---
 
-## 🔒 Comportamento de Segurança (v3.8.1)
+## Blocos de Ferramentas por Domínio
 
-- **Dashboard `/api/env`**: Retorna apenas o conteúdo do arquivo `.env` — não expõe variáveis do processo do sistema.
-- **Erros amigáveis**: Lookups de grupo, usuário e role retornam mensagem clara se o recurso não for encontrado (não causa crash).
+### IA & Contexto
+- `sn_sync_knowledge_base` — sincroniza metadados (incremental por padrão)
+- `sn_get_dependencies` — tabelas referenciadas por uma tabela (outbound)
+- `sn_analyze_impact` — tabelas que referenciam uma tabela (inbound)
+- `sn_generate_ai_context` — contexto Markdown otimizado a partir de um registro
+
+### Core CRUD
+- `sn_query_records` — consulta com encoded query, campos e paginação por offset
+- `sn_query_all` — paginação automática com cursor `next_offset`
+- `sn_get_record` — busca por `sys_id`
+- `sn_create_record` — criação genérica
+- `sn_update_record` — atualização por `sys_id`
+- `sn_bulk_update` — atualização em massa por encoded query
+- `sn_delete_record` — remoção por `sys_id`
+- `sn_list_envs` — lista ambientes configurados
+
+### Metadados & Código
+- `sn_upsert_metadata_script` — Business Rules, Script Includes, Client Scripts, UI Policies, Scheduled Jobs
+- `sn_execute_script` — execução de scripts no servidor (requer Scripted REST customizada)
+- `sn_manage_schema` — criação de tabelas e campos
+
+### Front-end & UX
+- `sn_manage_widget` — Service Portal Widgets
+- `sn_manage_ui_action` — UI Actions (botões e menus)
+- `sn_manage_ui_page` — UI Pages customizadas
+
+### Service Catalog
+- `sn_manage_catalog_item` — itens do catálogo
+- `sn_manage_catalog_variable` — variáveis de catalog items
+- `sn_manage_catalog_category` — categorias do catálogo
+- `sn_get_catalog_item_bundle` — leitura atômica (item + variáveis + client scripts)
+
+### Flow Designer
+- `sn_get_flow` — busca por nome ou `sys_id`
+- `sn_activate_flow` — ativa ou desativa
+- `sn_trigger_flow` — disparo manual via API
+- `sn_list_flow_executions` — histórico de execuções para debug
+- `sn_create_subflow` — cria Subflow reutilizável
+- `sn_create_flow_action` — cria Action customizada
+
+### Segurança & Acesso
+- `sn_manage_acl` — ACLs e roles (upsert, add_role, remove_role)
+- `sn_manage_notification` — notificações de email
+- `sn_manage_access` — Roles, Grupos e acessos de usuários
+
+### Deploy & Update Sets
+- `sn_create_update_set` — cria Update Set
+- `sn_set_current_update_set` — define o Update Set ativo
+- `sn_list_update_sets` — lista Update Sets (filtrável por estado)
+- `sn_complete_update_set` — marca como completo
+
+### Attachments
+- `sn_upload_attachment` — upload Base64
+- `sn_list_attachments` — lista anexos de um registro
+- `sn_download_attachment` — download em Base64
+
+### System Properties
+- `sn_get_sys_property` — busca por nome
+- `sn_set_sys_property` — upsert com suporte a mascaramento de senhas
+- `sn_list_sys_properties` — lista por prefixo
+
+### Utilitários
+- `sn_health_check` — diagnóstico de conectividade
+- `sn_manage_choice` — opções de campos Choice (`sys_choice`)
+- `sn_export_records` — exportação JSON ou CSV
+- `sn_manage_email_template` — templates de email (`sysevent_email_template`)
+
+---
+
+## Comportamento de Segurança
+
+- **Validação de inputs**: `tableName` deve seguir `[a-zA-Z0-9_]+`; `sys_id` deve ter 32 chars hexadecimais; `limit` deve ser inteiro entre 1 e 1000.
 - **Startup**: O servidor valida `SN_INSTANCE` ao iniciar e emite aviso no stderr se não configurado.
+- **Erros amigáveis**: Lookups de grupo, usuário e role retornam mensagem clara se o recurso não for encontrado (sem crash).
+- **Mascaramento**: `sn_set_sys_property` com `private: true` armazena o valor mascarado na UI.
 
 ---
 
-## 🧠 Conhecimento de Desenvolvimento ServiceNow
+## Conhecimento de Desenvolvimento ServiceNow
 
-Esta seção documenta padrões, armadilhas e convenções aprendidas em desenvolvimento real em instâncias PDI. Leia antes de criar tabelas, scripts ou configurações de UI.
+Padrões e armadilhas aprendidos em desenvolvimento real em instâncias PDI.
 
 ### 1. Escopo Global — Prefixo `u_`
 
-Campos criados em tabelas no **escopo global** são automaticamente prefixados com `u_`. Nunca assuma que o campo se chama `department` — ele será `u_department`.
-
-- Ao criar Script Includes, Business Rules, Client Scripts: sempre use `u_campo` nos GlideRecord
-- Choices (opções de campo choice): o campo `element` do registro `sys_choice` deve ser `u_department`, não `department`
-- Client Scripts: o campo `field` deve referenciar `u_department`, não `department`
+Campos em tabelas no escopo global são automaticamente prefixados com `u_`. Use sempre `u_department`, não `department`.
 
 ```javascript
 // ERRADO
@@ -64,162 +122,58 @@ gr.getValue("department");
 gr.getValue("u_department");
 ```
 
+Isso afeta: campos em GlideRecord, choices (`element` em `sys_choice`), Client Scripts (`field`).
+
 ### 2. Herança da Tabela `task`
 
-Tabelas que herdam de `task` (ex: `incident`, tabelas customizadas com parent=task) **exigem** o campo `short_description` preenchido para que `GlideRecord.insert()` funcione. Sem ele, o insert retorna `false` silenciosamente.
-
-```javascript
-gr.setValue("u_task_name",       taskName);
-gr.setValue("short_description", taskName); // obrigatório — herança de task
-var sysId = gr.insert();
-if (!sysId) throw new Error("insert falhou: " + taskName);
-```
+Tabelas que herdam de `task` exigem `short_description` preenchido para que `GlideRecord.insert()` funcione. Sem ele, o insert retorna `false` silenciosamente.
 
 ### 3. Configuração de Formulário (sys_ui_section)
 
 | Campo | Tipo | Uso correto |
 |-------|------|-------------|
-| `name` | String | Nome da tabela (ex: `incident`) |
-| `view` | Reference | **sys_id** da view — NÃO a string "Default view" |
-| `caption` | translated_field | Rótulo da seção visível no form |
-| `title` | Boolean | `"true"` = exibir título da seção; `"false"` = ocultar |
-| `position` | Integer | Ordem da seção no form (0, 1, 2...) |
+| `view` | Reference | sys_id da view — NÃO a string "Default view" |
+| `view_name` | String | Deve ser setado explicitamente como `"Default view"` (não é auto-populado via REST) |
+| `caption` | translated_field | Label da seção visível no form |
+| `title` | Boolean | `"true"` = exibir título da seção |
 
-**Como encontrar o sys_id da Default View:**
-```
-GET /api/now/table/sys_ui_view?sysparm_query=name%3Ddefault&sysparm_fields=sys_id,name,title
-```
-O sys_id da view "default" é fixo por instância. Exemplo PDI: `a07bae06183232108bb255f46a373a6e`.
+Sem `view_name`, o form renderer não encontra as seções. Não existe campo `position` em `sys_ui_section`.
 
-**Criar seção corretamente:**
-```json
-POST /api/now/table/sys_ui_section
-{
-  "name":      "nome_da_tabela",
-  "view":      "a07bae06183232108bb255f46a373a6e",
-  "view_name": "Default view",
-  "caption":   "Informações do Funcionário",
-  "title":     "true"
-}
-```
-> **Atenção:** `view_name` NÃO é auto-populado quando se usa `view` (sys_id) via REST API. Deve ser definido explicitamente como `"Default view"`. Sem ele, o form renderer não encontra as seções. Não existe campo `position` em `sys_ui_section`.
+### 4. Configuração de Lista (sys_ui_list)
 
-**Criar elemento de campo na seção:**
-```json
-POST /api/now/table/sys_ui_element
-{
-  "name":           "nome_da_tabela",
-  "view":           "a07bae06183232108bb255f46a373a6e",
-  "sys_ui_section": "<sys_id da seção criada acima>",
-  "element":        "u_nome_do_campo",
-  "position":       "0",
-  "type":           "field"
-}
-```
-
-### 4. Configuração de Lista (sys_ui_list + sys_ui_list_element)
-
-Colunas de lista **não** são inseridas diretamente via `sys_ui_list_element` isolado. É obrigatório:
-1. Criar o registro pai `sys_ui_list` para a tabela + view
-2. Criar os `sys_ui_list_element` referenciando o `list_id` do pai
-
-```json
-// Passo 1 — criar lista (view_name é obrigatório — não é auto-populado via REST)
-POST /api/now/table/sys_ui_list
-{ "name": "nome_da_tabela", "view": "<sys_id da view>", "view_name": "Default view" }
-
-// Passo 2 — adicionar colunas (requer o sys_id retornado acima)
-POST /api/now/table/sys_ui_list_element
-{
-  "name":     "nome_da_tabela",
-  "list_id":  "<sys_id do sys_ui_list>",
-  "element":  "u_campo",
-  "position": "0"
-}
-```
+Criar colunas de lista exige dois passos:
+1. Criar `sys_ui_list` (pai) para tabela + view — incluir `view_name: "Default view"` explicitamente
+2. Criar `sys_ui_list_element` com `list_id` referenciando o pai
 
 ### 5. URL Encoding em sysparm_query
 
-**Nunca** construa URLs com parâmetros de query manualmente concatenando strings com vírgulas. Sempre use `encodeURIComponent()`.
+Nunca concatene vírgulas diretamente em queries. Use `encodeURIComponent()` ou separe queries por tabela individualmente.
 
 ```javascript
-// PERIGOSO — vírgulas não codificadas podem quebrar o filtro silenciosamente
-const url = `/api/now/table/sys_ui_element?sysparm_query=nameIN${t1},${t2}`;
+// PERIGOSO — vírgulas quebram o filtro silenciosamente
+`?sysparm_query=nameIN${t1},${t2}`
 
-// CORRETO
-function tableUrl(table, params) {
-  const qs = Object.entries(params)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
-  return `/api/now/table/${table}?${qs}`;
-}
-// Ex: sysparm_query com vírgula no valor IN:
-tableUrl("sys_ui_element", {
-  sysparm_query: `name=${tableName}`,  // um valor por vez é mais seguro
-  sysparm_fields: "sys_id,name,element",
-  sysparm_limit: "50"
-});
+// CORRETO — uma query por vez ou encode explícito
+`?sysparm_query=${encodeURIComponent(`name=${tableName}`)}`
 ```
-
-**Prefira queries separadas por tabela** ao invés de `nameINtabela1,tabela2` — evita comportamentos imprevistos de parsing.
 
 ### 6. Scripted REST API — Descoberta de URL
 
-O ServiceNow atribui automaticamente um namespace à API REST criada. A URL final **não** é `/api/nome_que_você_deu` — é `/api/<namespace>/<base_uri>`.
+O ServiceNow atribui automaticamente um namespace à API. A URL real não é `/api/nome-que-você-deu`.
 
-Para descobrir a URL real após criar a API:
+Para descobrir:
 ```
 GET /api/now/table/sys_ws_definition?sysparm_query=name=<nome_da_api>&sysparm_fields=sys_id,name,base_uri
 ```
-O campo `base_uri` retorna o caminho completo incluindo o namespace gerado (ex: `/api/1964763/smart_onboarding`).
 
-### 7. Validação em Business Rules — Cuidados com Script Includes
+### 7. `sys_ui_element` não tem campo `name`
 
-Business Rules que delegam validação a um Script Include podem falhar silenciosamente se o SI usa campos sem o prefixo `u_`. Prefira inline validation no BR para casos críticos:
+Queries `name=tabela` em `sys_ui_element` ignoram o filtro e retornam todos os registros. Filtre sempre por `sys_ui_section=<sys_id>`.
 
-```javascript
-// Inline validation — mais seguro em escopo global
-var dept  = current.getValue("u_department");
-var name  = current.getValue("u_employee_name");
-var email = current.getValue("u_employee_email");
-if (!dept || !name || !email) {
-    gs.log("Campos ausentes — abortando", "BusinessRule");
-    return;
-}
+### 8. Limpeza de cache após alterações de layout
+
+Após criar/alterar form layout via REST:
 ```
-
-### 8. Diagnóstico de Business Rule sem Efeito
-
-Se um Business Rule dispara mas não produz resultado (ex: 0 tarefas criadas), isole o problema com um BR mínimo de diagnóstico:
-
-```javascript
-// BR diagnóstico — sem Script Includes
-(function executeRule(current, previous) {
-    gs.log("BR disparou. sys_id=" + current.sys_id, "Diagnose");
-    var gr = new GlideRecord("u_x_sua_tabela");
-    gr.initialize();
-    gr.setValue("short_description", "teste");
-    gr.setValue("u_campo", "valor");
-    var id = gr.insert();
-    gs.log("insert result: " + id, "Diagnose");
-})(current, previous);
+GET /cache.do
 ```
-Se `insert` retornar false: verifique se a tabela herda de `task` e se `short_description` está preenchido.
-
-### 9. Módulos de Navegação (sys_app_module)
-
-Para criar módulos de lista e formulário novo:
-
-```json
-POST /api/now/table/sys_app_module
-{
-  "name":        "Nome do Módulo",
-  "application": "<sys_id do sys_app_application>",
-  "table_name":  "nome_da_tabela",
-  "link_type":   "LIST",   // ou "NEW" para formulário de criação
-  "active":      "true",
-  "order":       "100"
-}
-```
-
-Sempre verifique se o menu da aplicação (`sys_app_application`) já existe antes de criar — filtre por `title=Nome Exato`.
+Aguarda redirect 302. Sem isso, o form renderiza o layout antigo.
