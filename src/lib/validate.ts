@@ -34,6 +34,27 @@ export function validateSysId(sys_id: any): string {
 }
 
 /**
+ * Valida o payload de criação/atualização.
+ * Garante que seja um objeto não-vazio sem chaves suspeitas.
+ */
+export function validateDataPayload(data: any, context = "data"): Record<string, any> {
+  if (data === null || data === undefined || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`O campo '${context}' deve ser um objeto JSON (ex: { "state": "1", "priority": "2" }).`);
+  }
+  const keys = Object.keys(data);
+  if (keys.length === 0) {
+    throw new Error(`O campo '${context}' não pode ser um objeto vazio.`);
+  }
+  // Bloqueia chaves de sistema protegidas que o ServiceNow ignora silenciosamente
+  const blockedKeys = ["sys_id", "sys_created_on", "sys_created_by", "sys_updated_on", "sys_updated_by"];
+  const blocked = keys.filter(k => blockedKeys.includes(k));
+  if (blocked.length > 0) {
+    throw new Error(`Os campos '${blocked.join(", ")}' são somente leitura e não podem ser enviados no payload.`);
+  }
+  return data as Record<string, any>;
+}
+
+/**
  * Valida e converte o limite de registros.
  */
 export function validateLimit(limit: any): number {

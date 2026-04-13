@@ -1,4 +1,4 @@
-import { snGet, snDelete, snPostBinary, snGetBinary } from "../lib/client.js";
+import { snGet, snPostBinary, snGetBinary } from "../lib/client.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Attachment API
@@ -46,18 +46,7 @@ export const attachmentTools = [
       required: ["attachment_sys_id"],
     },
   },
-  {
-    name: "sn_delete_attachment",
-    description: "Remove um anexo do ServiceNow pelo sys_id.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        env:               { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        attachment_sys_id: { type: "string", description: "sys_id do anexo a ser removido" },
-      },
-      required: ["attachment_sys_id"],
-    },
-  },
+  // sn_delete_attachment: DESABILITADO por política de segurança
 ];
 
 // ─────────────────────────────────────────────
@@ -130,9 +119,9 @@ export async function handleAttachmentTool(name: string, args: any) {
     };
   }
 
-  // ── Delete ───────────────────────────────────
+  // ── Delete (DESABILITADO) ─────────────────────
   if (name === "sn_delete_attachment") {
-    return snDelete(`/api/now/attachment/${args.attachment_sys_id}`, env);
+    throw new Error("Operação de delete desabilitada por política de segurança.");
   }
 
   return null;

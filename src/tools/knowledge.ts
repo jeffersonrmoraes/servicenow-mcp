@@ -37,7 +37,7 @@ interface ServiceNowColumn {
 export const knowledgeTools = [
   {
     name: "sn_sync_knowledge_base",
-    description: "Sincroniza metadados da instância (tabelas, campos e relacionamentos). Agora incremental (v4.0).",
+    description: "Sincroniza metadados da instância (tabelas, campos e relacionamentos). Suporte incremental (v4.0) e garbage collection de schemas obsoletos.",
     inputSchema: {
       type: "object",
       properties: {
@@ -47,6 +47,7 @@ export const knowledgeTools = [
         limit:         { type: "number", description: "Máximo de tabelas a processar nesta rodada", default: 10 },
         offset:        { type: "number", description: "Offset para paginação do crawl", default: 0 },
         force:         { type: "boolean", description: "Ignorar modo incremental e forçar sync completo", default: false },
+        cleanup:       { type: "boolean", description: "Remove schemas locais de tabelas que não existem mais na instância (requer force=true)", default: false },
       },
       required: ["category"],
     },
@@ -67,6 +68,7 @@ export async function handleKnowledgeTool(name: string, args: any) {
       const limit = args.limit || 10;
       const offset = args.offset || 0;
       const force = !!args.force;
+      const cleanup = !!args.cleanup;
 
       const knowledgeDir = path.resolve(process.cwd(), `knowledge`);
       const stateFile = path.join(knowledgeDir, "state.json");
@@ -161,7 +163,34 @@ export async function handleKnowledgeTool(name: string, args: any) {
         }
       }
 
-      // 6. Atualizar Estado e Índice
+      // 6. Garbage Collection — remove .md de tabelas que não existem mais
+      let removed: string[] = [];
+      if (cleanup && force) {
+        const existingFiles = fs.readdirSync(categoryDir).filter(f => f.endsWith(".md"));
+        const syncedNames = new Set(tables.map((t: ServiceNowTable) => `${t.name}.md`));
+
+        // Para cleanup seguro, buscamos TODAS as tabelas da categoria (sem limit/offset)
+        let allTableNames = new Set<string>();
+        try {
+          const allResp = await snGet("/api/now/table/sys_db_object", {
+            sysparm_query: query.split("^sys_updated_on")[0] + "^ORDERBYname",
+            sysparm_limit: 5000,
+            sysparm_fields: "name",
+          }, env);
+          (allResp.result || []).forEach((t: any) => allTableNames.add(`${t.name}.md`));
+        } catch {}
+
+        for (const file of existingFiles) {
+          if (allTableNames.size > 0 && !allTableNames.has(file)) {
+            try {
+              fs.unlinkSync(path.join(categoryDir, file));
+              removed.push(file.replace(".md", ""));
+            } catch {}
+          }
+        }
+      }
+
+      // 7. Atualizar Estado e Índice
       if (!state[env]) state[env] = {};
       state[env][category] = syncTimestamp;
       fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), "utf8");
@@ -173,6 +202,7 @@ export async function handleKnowledgeTool(name: string, args: any) {
         processed_count: results.length,
         incremental: !!lastSync,
         tables: results,
+        ...(removed.length > 0 && { removed_obsolete: removed }),
         synced_at: syncTimestamp
       };
     }

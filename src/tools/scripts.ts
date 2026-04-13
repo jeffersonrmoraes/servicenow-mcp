@@ -1,5 +1,5 @@
-import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
-import { validateTableName, validateSysId, validateLimit } from "../lib/validate.js";
+import { snGet, snPost, snPatch } from "../lib/client.js";
+import { validateTableName, validateSysId, validateLimit, validateDataPayload } from "../lib/validate.js";
 import fs from "fs";
 import path from "path";
 
@@ -80,18 +80,23 @@ export const scriptTools = [
     },
   },
   {
-    name: "sn_delete_record",
-    description: "Remove um registro de qualquer tabela pelo sys_id.",
+    name: "sn_query_all",
+    description: "Consulta todos os registros de uma tabela paginando automaticamente. Retorna os dados e um cursor (next_offset) para continuar caso haja mais registros. Use para datasets maiores que 1000 registros.",
     inputSchema: {
       type: "object",
       properties: {
-        env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        table:  { type: "string" },
-        sys_id: { type: "string" },
+        env:        { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
+        table:      { type: "string" },
+        query:      { type: "string", description: "Encoded query (ex: active=true^priority=1)" },
+        fields:     { type: "string", description: "Campos separados por vírgula" },
+        page_size:  { type: "number", description: "Registros por página (default: 200, máx: 1000)" },
+        offset:     { type: "number", description: "Offset inicial para retomar um cursor (default: 0)" },
+        max_pages:  { type: "number", description: "Máximo de páginas a buscar por chamada (default: 5, máx: 20)" },
       },
-      required: ["table", "sys_id"],
+      required: ["table"],
     },
   },
+  // sn_delete_record: DESABILITADO por política de segurança
 
   // ─────────────────────────────────────────────
   //  TOOLS — Ambiente e Configuração
@@ -246,6 +251,7 @@ export async function handleScriptTool(name: string, args: any) {
 
     case "sn_create_record": {
       validateTableName(args.table);
+      validateDataPayload(args.data);
       const { result } = await snPost(`/api/now/table/${args.table}`, args.data, env);
       return result;
     }
@@ -253,12 +259,14 @@ export async function handleScriptTool(name: string, args: any) {
     case "sn_update_record": {
       validateTableName(args.table);
       validateSysId(args.sys_id);
+      validateDataPayload(args.data);
       const { result } = await snPatch(`/api/now/table/${args.table}/${args.sys_id}`, args.data, env);
       return result;
     }
 
     case "sn_bulk_update": {
       validateTableName(args.table);
+      validateDataPayload(args.data);
       const limit = Math.min(args.limit || 100, 500);
 
       // 1. Buscar registros que atendem a query
@@ -289,11 +297,46 @@ export async function handleScriptTool(name: string, args: any) {
       };
     }
 
-    case "sn_delete_record": {
+    case "sn_query_all": {
       validateTableName(args.table);
-      validateSysId(args.sys_id);
-      await snDelete(`/api/now/table/${args.table}/${args.sys_id}`, env);
-      return { deleted: true, table: args.table, sys_id: args.sys_id };
+      const pageSize = Math.min(args.page_size || 200, 1000);
+      const maxPages = Math.min(args.max_pages || 5, 20);
+      let offset     = Math.max(args.offset || 0, 0);
+
+      const allRecords: any[] = [];
+      let pagesRead = 0;
+      let hasMore   = false;
+
+      while (pagesRead < maxPages) {
+        const { result } = await snGet(`/api/now/table/${args.table}`, {
+          sysparm_limit:  pageSize,
+          sysparm_offset: offset,
+          ...(args.query  && { sysparm_query:  args.query  }),
+          ...(args.fields && { sysparm_fields: args.fields }),
+        }, env);
+
+        if (!result || result.length === 0) break;
+        allRecords.push(...result);
+        pagesRead++;
+        offset += result.length;
+
+        if (result.length < pageSize) break; // última página
+        if (pagesRead >= maxPages) { hasMore = true; break; }
+      }
+
+      return {
+        result:    allRecords,
+        meta: {
+          total_fetched: allRecords.length,
+          pages_read:    pagesRead,
+          has_more:      hasMore,
+          next_offset:   hasMore ? offset : null,
+        },
+      };
+    }
+
+    case "sn_delete_record": {
+      throw new Error("Operação de delete desabilitada por política de segurança.");
     }
 
     case "sn_list_envs": {

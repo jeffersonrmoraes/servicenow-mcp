@@ -12,7 +12,7 @@ export const securityTools = [
       type: "object",
       properties: {
         env:    { type: "string" },
-        action: { type: "string", enum: ["upsert", "delete", "list", "add_role", "remove_role"] },
+        action: { type: "string", enum: ["upsert", "list", "add_role", "remove_role"] },
         sys_id: { type: "string", description: "Obrigatório para action=delete, add_role, remove_role ou atualização em upsert" },
         name:      { type: "string", description: "Nome da ACL (ex: incident.caller_id)" },
         type:      { type: "string", enum: ["record", "client_callable_script_include", "soap", "rest"] },
@@ -106,8 +106,7 @@ export async function handleSecurityTool(name: string, args: any) {
       }
 
       case "delete":
-        await snDelete(`/api/now/table/sys_security_acl/${sys_id}`, env);
-        return { action: "deleted", sys_id };
+        throw new Error("Operação de delete desabilitada por política de segurança.");
 
       case "list": {
         let query = `object=${data.table}`;

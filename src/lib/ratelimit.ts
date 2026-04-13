@@ -1,35 +1,52 @@
 // ─────────────────────────────────────────────
-//  Simple Rate Limiter
+//  Rate Limiter — iterativo, janela deslizante
 // ─────────────────────────────────────────────
 
 const history = new Map<string, number[]>();
-const MAX_DEFAULT = 10;
-const WINDOW_MS  = 1000;
+
+const WINDOW_MS   = 1000;
+const MAX_READ    = parseInt(process.env.SN_RATE_LIMIT_READ  || "10", 10); // GET
+const MAX_WRITE   = parseInt(process.env.SN_RATE_LIMIT_WRITE || "5",  10); // POST / PATCH / DELETE
+const TIMEOUT_MS  = 5000;
+const BACKOFF_MS  = 100;
 
 /**
  * Garante que não excedemos o limite de requisições por segundo.
- * Implementação simplificada (Fixed Window).
+ * Implementação iterativa com janela deslizante — sem risco de stack overflow.
+ *
+ * @param env    - prefixo do ambiente (ou null para default)
+ * @param method - método HTTP (GET usa limite maior que writes)
  */
-export async function checkRateLimit(env: string | null, max: number = MAX_DEFAULT, _waited: number = 0): Promise<void> {
+export async function checkRateLimit(
+  env: string | null,
+  method: "GET" | "POST" | "PATCH" | "DELETE" | "PUT" = "GET",
+): Promise<void> {
   const key = env || "default";
+  const max = method === "GET" ? MAX_READ : MAX_WRITE;
+
   if (!history.has(key)) history.set(key, []);
 
-  const now = Date.now();
-  const cutoff = now - WINDOW_MS;
-  let timestamps = history.get(key)!;
+  const deadline = Date.now() + TIMEOUT_MS;
 
-  // Limpa registros antigos
-  timestamps = timestamps.filter((t: number) => t > cutoff);
-  history.set(key, timestamps);
+  while (true) {
+    const now    = Date.now();
+    const cutoff = now - WINDOW_MS;
 
-  if (timestamps.length >= max) {
-    if (_waited > 5000) {
-      throw new Error(`Rate limit excedido para o ambiente '${key}' (5s timeout)`);
+    // Limpa registros fora da janela
+    const timestamps = history.get(key)!.filter(t => t > cutoff);
+    history.set(key, timestamps);
+
+    if (timestamps.length < max) {
+      timestamps.push(now);
+      return;
     }
-    // Espera um pouco e tenta novamente
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return checkRateLimit(env, max, _waited + 100);
-  }
 
-  timestamps.push(now);
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Rate limit excedido para o ambiente '${key}' — timeout de ${TIMEOUT_MS / 1000}s atingido.`
+      );
+    }
+
+    await new Promise<void>(resolve => setTimeout(resolve, BACKOFF_MS));
+  }
 }

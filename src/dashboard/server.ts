@@ -4,6 +4,24 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { scriptTools }       from '../tools/scripts.js';
+import { catalogTools }      from '../tools/catalog.js';
+import { flowTools }         from '../tools/flow.js';
+import { securityTools }     from '../tools/security.js';
+import { deployTools }       from '../tools/deploy.js';
+import { attachmentTools }   from '../tools/attachments.js';
+import { propertyTools }     from '../tools/properties.js';
+import { frontendTools }     from '../tools/frontend.js';
+import { bundleTools }       from '../tools/bundle.js';
+import { knowledgeTools }    from '../tools/knowledge.js';
+import { relationshipTools } from '../tools/relationships.js';
+
+const ALL_TOOLS = [
+  ...scriptTools, ...catalogTools, ...flowTools, ...securityTools,
+  ...deployTools, ...attachmentTools, ...propertyTools, ...frontendTools,
+  ...bundleTools, ...knowledgeTools, ...relationshipTools,
+];
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = 3000;
@@ -130,6 +148,17 @@ app.get('/api/callback', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).send(`Erro interno no callback: ${err.message}`);
   }
+});
+
+// Listar todas as ferramentas registradas
+app.get('/api/tools', (_req: Request, res: Response) => {
+  const tools = ALL_TOOLS.map(t => ({
+    name:        t.name,
+    description: t.description,
+    required:    (t.inputSchema as any).required || [],
+    properties:  Object.keys((t.inputSchema as any).properties || {}),
+  }));
+  res.json({ count: tools.length, tools });
 });
 
 // Testar conexão com ServiceNow

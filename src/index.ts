@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import fs   from "fs";
 import path from "path";
+import { logger } from "./lib/logger.js";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -134,7 +135,7 @@ function buildKnowledgeResources(): MCPResource[] {
 //  Server Definition
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-mcp-server", version: "3.9.0" },
+  { name: "servicenow-mcp-server", version: "4.1.0" },
   { capabilities: { tools: {}, resources: {} } }
 );
 
@@ -211,8 +212,8 @@ function validateEnv() {
   if (!hasDefault) {
     const hasPrefixed = Object.keys(process.env).some(k => k.endsWith("_SN_INSTANCE"));
     if (!hasPrefixed) {
-      console.error(
-        "[AVISO] Nenhuma instância ServiceNow configurada (SN_INSTANCE). " +
+      logger.warn(
+        "Nenhuma instância ServiceNow configurada (SN_INSTANCE). " +
         "Copie .env.example para .env e preencha as credenciais antes de usar as ferramentas."
       );
     }
@@ -228,6 +229,11 @@ const transport = new StdioServerTransport();
 await server.connect(transport);
 
 const resourceCount = buildKnowledgeResources().length;
-console.error(
-  `ServiceNow MCP Server v3.9.0 — ${ALL_TOOLS.length} ferramentas | ${resourceCount} resources de knowledge`
-);
+logger.info("ServiceNow MCP Server iniciado", {
+  version:   "4.1.0",
+  tools:     ALL_TOOLS.length,
+  resources: resourceCount,
+  log_level: process.env.SN_LOG_LEVEL || "info",
+  cache_ttl: process.env.SN_CACHE_TTL_MS || "60000",
+  timeout:   process.env.SN_REQUEST_TIMEOUT_MS || "30000",
+});
