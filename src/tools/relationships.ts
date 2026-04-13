@@ -1,4 +1,5 @@
 import { snGet } from "../lib/client.js";
+import { validateTableName } from "../lib/validate.js";
 import { ServiceNowEnv } from "../types.js";
 
 // ─────────────────────────────────────────────
@@ -42,6 +43,7 @@ export async function handleRelationshipTool(name: string, args: any) {
   switch (name) {
     case "sn_get_dependencies": {
       const { table } = args;
+      validateTableName(table);
       // Busca dicionário onde a tabela informada tem campos do tipo 'reference'
       const { result: deps } = await snGet("/api/now/table/sys_dictionary", {
         sysparm_query: `name=${table}^internal_type=reference^referenceISNOTEMPTY^active=true`,
@@ -60,6 +62,7 @@ export async function handleRelationshipTool(name: string, args: any) {
 
     case "sn_analyze_impact": {
       const { table } = args;
+      validateTableName(table);
       // Busca dicionário onde outras tabelas referenciam a tabela informada
       const { result: impact } = await snGet("/api/now/table/sys_dictionary", {
         sysparm_query: `reference=${table}^active=true`,

@@ -1,5 +1,5 @@
 import { snGet, snPost, snPatch } from "../lib/client.js";
-import { validateTableName, validateSysId, validateLimit, validateDataPayload } from "../lib/validate.js";
+import { validateTableName, validateSysId, validateLimit, validateDataPayload, validateEncodedQuery } from "../lib/validate.js";
 import fs from "fs";
 import path from "path";
 
@@ -233,10 +233,11 @@ export async function handleScriptTool(name: string, args: any) {
       validateTableName(args.table);
       const limit  = args.limit  ? validateLimit(args.limit)  : 10;
       const offset = args.offset ? Math.max(0, parseInt(args.offset, 10)) : 0;
+      const query  = validateEncodedQuery(args.query);
       const { result } = await snGet(`/api/now/table/${args.table}`, {
         sysparm_limit:  limit,
         sysparm_offset: offset,
-        ...(args.query  && { sysparm_query:  args.query  }),
+        ...(query      && { sysparm_query:  query      }),
         ...(args.fields && { sysparm_fields: args.fields }),
       }, env);
       return { result, meta: { offset, limit, count: result.length } };
@@ -267,11 +268,13 @@ export async function handleScriptTool(name: string, args: any) {
     case "sn_bulk_update": {
       validateTableName(args.table);
       validateDataPayload(args.data);
+      const query = validateEncodedQuery(args.query, "query");
+      if (!query) throw new Error("O campo 'query' é obrigatório para sn_bulk_update.");
       const limit = Math.min(args.limit || 100, 500);
 
       // 1. Buscar registros que atendem a query
       const { result: records } = await snGet(`/api/now/table/${args.table}`, {
-        sysparm_query:  args.query,
+        sysparm_query:  query,
         sysparm_fields: "sys_id",
         sysparm_limit:  limit,
       }, env);
@@ -286,9 +289,13 @@ export async function handleScriptTool(name: string, args: any) {
       );
 
       const succeeded = results.filter(r => r.status === "fulfilled").length;
-      const failed    = results.filter((r: any) => r.status === "rejected").map(
-        (r: any, i: number) => ({ sys_id: records[i].sys_id, reason: r.reason?.message })
-      );
+      // Garante que reason é sempre string, independente do tipo de erro
+      const failed = results
+        .map((r, i) => r.status === "rejected"
+          ? { sys_id: records[i].sys_id, reason: r.reason instanceof Error ? r.reason.message : String(r.reason) }
+          : null
+        )
+        .filter(Boolean);
 
       return {
         updated: succeeded,
@@ -299,9 +306,10 @@ export async function handleScriptTool(name: string, args: any) {
 
     case "sn_query_all": {
       validateTableName(args.table);
-      const pageSize = Math.min(args.page_size || 200, 1000);
-      const maxPages = Math.min(args.max_pages || 5, 20);
-      let offset     = Math.max(args.offset || 0, 0);
+      const pageSize  = Math.min(args.page_size || 200, 1000);
+      const maxPages  = Math.min(args.max_pages || 5, 20);
+      let offset      = Math.max(args.offset || 0, 0);
+      const allQuery  = validateEncodedQuery(args.query);
 
       const allRecords: any[] = [];
       let pagesRead = 0;
@@ -311,7 +319,7 @@ export async function handleScriptTool(name: string, args: any) {
         const { result } = await snGet(`/api/now/table/${args.table}`, {
           sysparm_limit:  pageSize,
           sysparm_offset: offset,
-          ...(args.query  && { sysparm_query:  args.query  }),
+          ...(allQuery    && { sysparm_query:  allQuery    }),
           ...(args.fields && { sysparm_fields: args.fields }),
         }, env);
 

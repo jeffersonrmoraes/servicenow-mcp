@@ -1,4 +1,6 @@
 import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
+import { validateLimit } from "../lib/validate.js";
+import { findByField, encodeQueryParam } from "../lib/helpers.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Security Consolidated (v3.0)
@@ -13,7 +15,7 @@ export const securityTools = [
       properties: {
         env:    { type: "string" },
         action: { type: "string", enum: ["upsert", "list", "add_role", "remove_role"] },
-        sys_id: { type: "string", description: "Obrigatório para action=delete, add_role, remove_role ou atualização em upsert" },
+        sys_id: { type: "string", description: "Obrigatório para add_role, remove_role ou atualização em upsert" },
         name:      { type: "string", description: "Nome da ACL (ex: incident.caller_id)" },
         type:      { type: "string", enum: ["record", "client_callable_script_include", "soap", "rest"] },
         operation: { type: "string", enum: ["read", "write", "create", "delete", "execute"] },
@@ -95,7 +97,6 @@ export async function handleSecurityTool(name: string, args: any) {
           script:    data.script || "",
           condition: data.condition || "",
         };
-        // Se tem sys_id, é PATCH, senão é POST
         if (sys_id) {
           const { result } = await snPatch(`/api/now/table/sys_security_acl/${sys_id}`, payload, env);
           return { action: "updated", sys_id: result.sys_id, name: result.name };
@@ -109,33 +110,33 @@ export async function handleSecurityTool(name: string, args: any) {
         throw new Error("Operação de delete desabilitada por política de segurança.");
 
       case "list": {
-        let query = `object=${data.table}`;
-        if (data.field)     query += `^field=${data.field}`;
+        const limit = data.limit ? validateLimit(data.limit) : 20;
+        // Usa encodeQueryParam para evitar injeção via table/field
+        let query = data.table ? `object=${encodeQueryParam(data.table)}` : "objectISNOTEMPTY";
+        if (data.field) query += `^field=${encodeQueryParam(data.field)}`;
         const { result } = await snGet("/api/now/table/sys_security_acl", {
           sysparm_query: query,
-          sysparm_limit: data.limit || 20,
+          sysparm_limit: limit,
         }, env);
         return result;
       }
 
       case "add_role": {
-        const roleData = await snGet("/api/now/table/sys_user_role", { sysparm_query: `name=${data.role}`, sysparm_limit: 1 }, env);
-        if (!roleData.result?.length) throw new Error(`Role '${data.role}' não encontrada`);
+        const role = await findByField("sys_user_role", "name", data.role, env, `Role '${data.role}' não encontrada`);
         const { result } = await snPost("/api/now/table/sys_security_acl_role", {
           sys_security_acl: sys_id,
-          sys_user_role:    roleData.result[0].sys_id,
+          sys_user_role:    role.sys_id,
         }, env);
         return { action: "role_added", sys_id: result.sys_id };
       }
 
       case "remove_role": {
-        const roleData = await snGet("/api/now/table/sys_user_role", { sysparm_query: `name=${data.role}`, sysparm_limit: 1 }, env);
-        if (!roleData.result?.length) throw new Error(`Role '${data.role}' não encontrada`);
+        const role = await findByField("sys_user_role", "name", data.role, env, `Role '${data.role}' não encontrada`);
         const relData = await snGet("/api/now/table/sys_security_acl_role", {
-          sysparm_query: `sys_security_acl=${sys_id}^sys_user_role=${roleData.result[0].sys_id}`,
-          sysparm_limit: 1
+          sysparm_query: `sys_security_acl=${sys_id}^sys_user_role=${role.sys_id}`,
+          sysparm_limit: 1,
         }, env);
-        if (!relData.result?.length) throw new Error(`Relação não encontrada`);
+        if (!relData.result?.length) throw new Error("Relação ACL-Role não encontrada");
         await snDelete(`/api/now/table/sys_security_acl_role/${relData.result[0].sys_id}`, env);
         return { action: "role_removed", acl_sys_id: sys_id };
       }
@@ -146,13 +147,13 @@ export async function handleSecurityTool(name: string, args: any) {
     const { action, sys_id, ...data } = args;
     if (action === "upsert") {
       const payload = {
-        name:            data.name,
-        collection:      data.table,
-        subject:         data.subject,
-        message_html:    data.body_html,
-        event_name:      data.event_name || "",
-        condition:       data.condition || "",
-        active:          data.active !== false,
+        name:         data.name,
+        collection:   data.table,
+        subject:      data.subject,
+        message_html: data.body_html,
+        event_name:   data.event_name || "",
+        condition:    data.condition || "",
+        active:       data.active !== false,
       };
       if (sys_id) {
         const { result } = await snPatch(`/api/now/table/sysevent_email_action/${sys_id}`, payload, env);
@@ -162,9 +163,11 @@ export async function handleSecurityTool(name: string, args: any) {
         return { action: "created", sys_id: result.sys_id, name: result.name };
       }
     } else if (action === "list") {
+      const limit = data.limit ? validateLimit(data.limit) : 20;
+      const query = data.table ? `collection=${encodeQueryParam(data.table)}` : "nameISNOTEMPTY";
       const { result } = await snGet("/api/now/table/sysevent_email_action", {
-        sysparm_query: `collection=${data.table}`,
-        sysparm_limit: data.limit || 20,
+        sysparm_query: query,
+        sysparm_limit: limit,
       }, env);
       return result;
     }
@@ -174,36 +177,47 @@ export async function handleSecurityTool(name: string, args: any) {
     const { type, action, ...data } = args;
 
     if (type === "role" && action === "create") {
-      const { result } = await snPost("/api/now/table/sys_user_role", { name: data.name, description: data.description || "" }, env);
+      const { result } = await snPost("/api/now/table/sys_user_role", {
+        name:        data.name,
+        description: data.description || "",
+      }, env);
       return result;
     }
 
     if (type === "group_member") {
-      const group = await snGet("/api/now/table/sys_user_group", { sysparm_query: `name=${data.group_name}`, sysparm_limit: 1 }, env);
-      if (!group.result?.length) throw new Error(`Grupo '${data.group_name}' não encontrado`);
-      const user  = await snGet("/api/now/table/sys_user", { sysparm_query: `user_name=${data.user_name}`, sysparm_limit: 1 }, env);
-      if (!user.result?.length) throw new Error(`Usuário '${data.user_name}' não encontrado`);
+      const group = await findByField("sys_user_group", "name", data.group_name, env, `Grupo '${data.group_name}' não encontrado`);
+      const user  = await findByField("sys_user", "user_name", data.user_name, env, `Usuário '${data.user_name}' não encontrado`);
 
       if (action === "add") {
-        const { result } = await snPost("/api/now/table/sys_user_grmember", { group: group.result[0].sys_id, user: user.result[0].sys_id }, env);
+        const { result } = await snPost("/api/now/table/sys_user_grmember", {
+          group: group.sys_id,
+          user:  user.sys_id,
+        }, env);
         return result;
       } else if (action === "remove") {
-        const rel = await snGet("/api/now/table/sys_user_grmember", { sysparm_query: `group=${group.result[0].sys_id}^user=${user.result[0].sys_id}`, sysparm_limit: 1 }, env);
+        const rel = await snGet("/api/now/table/sys_user_grmember", {
+          sysparm_query: `group=${group.sys_id}^user=${user.sys_id}`,
+          sysparm_limit: 1,
+        }, env);
         if (!rel.result?.length) throw new Error(`Membro '${data.user_name}' não pertence ao grupo '${data.group_name}'`);
         await snDelete(`/api/now/table/sys_user_grmember/${rel.result[0].sys_id}`, env);
         return { action: "removed", user: data.user_name, group: data.group_name };
       } else if (action === "list") {
-        const { result } = await snGet("/api/now/table/sys_user_grmember", { sysparm_query: `group=${group.result[0].sys_id}`, sysparm_fields: "user.user_name,user.name" }, env);
+        const { result } = await snGet("/api/now/table/sys_user_grmember", {
+          sysparm_query:  `group=${group.sys_id}`,
+          sysparm_fields: "user.user_name,user.name",
+        }, env);
         return result;
       }
     }
 
     if (type === "user_role" && action === "add") {
-      const user = await snGet("/api/now/table/sys_user", { sysparm_query: `user_name=${data.user_name}`, sysparm_limit: 1 }, env);
-      if (!user.result?.length) throw new Error(`Usuário '${data.user_name}' não encontrado`);
-      const role = await snGet("/api/now/table/sys_user_role", { sysparm_query: `name=${data.role_name}`, sysparm_fields: "sys_id", sysparm_limit: 1 }, env);
-      if (!role.result?.length) throw new Error(`Role '${data.role_name}' não encontrada`);
-      const { result } = await snPost("/api/now/table/sys_user_has_role", { user: user.result[0].sys_id, role: role.result[0].sys_id }, env);
+      const user = await findByField("sys_user", "user_name", data.user_name, env, `Usuário '${data.user_name}' não encontrado`);
+      const role = await findByField("sys_user_role", "name", data.role_name, env, `Role '${data.role_name}' não encontrada`);
+      const { result } = await snPost("/api/now/table/sys_user_has_role", {
+        user: user.sys_id,
+        role: role.sys_id,
+      }, env);
       return result;
     }
   }

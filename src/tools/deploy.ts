@@ -1,4 +1,5 @@
 import { snGet, snPost, snPatch, getEnvUser } from "../lib/client.js";
+import { validateSysId, validateLimit } from "../lib/validate.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Deploy (Update Sets)
@@ -75,6 +76,7 @@ export async function handleDeployTool(name: string, args: any) {
     }
 
     case "sn_set_current_update_set": {
+      validateSysId(args.sys_id);
       await snPost("/api/now/table/sys_user_preference", {
         name:  "sys_update_set",
         value: args.sys_id,
@@ -84,18 +86,20 @@ export async function handleDeployTool(name: string, args: any) {
     }
 
     case "sn_list_update_sets": {
+      const limit = args.limit ? validateLimit(args.limit) : 20;
       const query = args.state ? `state=${args.state}` : "stateINin progress,complete";
       const data = await snGet("/api/now/table/sys_update_set", {
-        sysparm_query:  query,
-        sysparm_fields: "sys_id,name,state,description,sys_created_by,sys_created_on",
-        sysparm_limit:  args.limit || 20,
-        sysparm_orderby: "sys_created_on",
+        sysparm_query:             query,
+        sysparm_fields:            "sys_id,name,state,description,sys_created_by,sys_created_on",
+        sysparm_limit:             limit,
+        sysparm_orderby:           "sys_created_on",
         sysparm_orderby_direction: "desc",
       }, args.env);
       return data.result;
     }
 
     case "sn_complete_update_set": {
+      validateSysId(args.sys_id);
       const data = await snPatch(`/api/now/table/sys_update_set/${args.sys_id}`, {
         state: "complete",
       }, args.env);

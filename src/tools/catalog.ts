@@ -1,4 +1,5 @@
-import { snGet, snPost, snPatch } from "../lib/client.js";
+import { upsertRecord } from "../lib/helpers.js";
+import { ServiceNowEnv } from "../types.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Service Catalog Consolidated (v3.0)
@@ -71,76 +72,51 @@ export const catalogTools = [
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-import { ServiceNowEnv } from "../types.js";
-
 export async function handleCatalogTool(name: string, args: any) {
-  const env = args.env || null;
+  const env: ServiceNowEnv = args.env || null;
 
   if (name === "sn_manage_catalog_item") {
     const { sys_id, ...data } = args;
-    const payload = {
+    return upsertRecord("sc_cat_item", sys_id, {
       name:              data.name,
       short_description: data.short_description,
       description:       data.description || "",
       category:          data.category || "",
       workflow:          data.workflow || "",
-      active:            data.active !== false,
+      active:            data.active ?? true,
       order:             data.order || 100,
       group:             data.fulfillment_group || "",
       delivery_time:     data.delivery_time || "",
-    };
-
-    if (sys_id) {
-      const { result } = await snPatch(`/api/now/table/sc_cat_item/${sys_id}`, payload, env);
-      return { action: "updated", sys_id: result.sys_id, name: result.name };
-    } else {
-      const { result } = await snPost("/api/now/table/sc_cat_item", payload, env);
-      return { action: "created", sys_id: result.sys_id, name: result.name };
-    }
+    }, env, ["name"]);
   }
 
   if (name === "sn_manage_catalog_variable") {
     const { sys_id, ...data } = args;
-    const payload = {
-      cat_item:      data.catalog_item_sys_id,
+    const payload: Record<string, any> = {
       name:          data.name,
       question_text: data.question_text,
       type:          data.type,
       mandatory:     !!data.mandatory,
-      active:        data.active !== false,
+      active:        data.active ?? true,
       order:         data.order || 100,
       default_value: data.default_value || "",
       help_text:     data.help_text || "",
       reference:     data.reference_table || "",
     };
-
-    if (sys_id) {
-      delete payload.cat_item; // Não se move variável de item via update simples
-      const { result } = await snPatch(`/api/now/table/item_option_new/${sys_id}`, payload, env);
-      return { action: "updated", sys_id: result.sys_id, name: result.name };
-    } else {
-      const { result } = await snPost("/api/now/table/item_option_new", payload, env);
-      return { action: "created", sys_id: result.sys_id, name: result.name };
-    }
+    // cat_item só vai no POST (criação) — não pode ser movido via update
+    if (!sys_id) payload.cat_item = data.catalog_item_sys_id;
+    return upsertRecord("item_option_new", sys_id, payload, env, ["name"]);
   }
 
   if (name === "sn_manage_catalog_category") {
     const { sys_id, ...data } = args;
-    const payload = {
+    return upsertRecord("sc_category", sys_id, {
       title:       data.title,
       description: data.description || "",
       sc_catalog:  data.catalog || "",
-      active:      data.active !== false,
+      active:      data.active ?? true,
       order:       data.order || 100,
-    };
-
-    if (sys_id) {
-      const { result } = await snPatch(`/api/now/table/sc_category/${sys_id}`, payload, env);
-      return { action: "updated", sys_id: result.sys_id, title: result.title };
-    } else {
-      const { result } = await snPost("/api/now/table/sc_category", payload, env);
-      return { action: "created", sys_id: result.sys_id, title: result.title };
-    }
+    }, env, ["title"]);
   }
 
   return null;

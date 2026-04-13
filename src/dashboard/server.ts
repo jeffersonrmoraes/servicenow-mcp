@@ -15,11 +15,12 @@ import { frontendTools }     from '../tools/frontend.js';
 import { bundleTools }       from '../tools/bundle.js';
 import { knowledgeTools }    from '../tools/knowledge.js';
 import { relationshipTools } from '../tools/relationships.js';
+import { extraTools }        from '../tools/extras.js';
 
 const ALL_TOOLS = [
   ...scriptTools, ...catalogTools, ...flowTools, ...securityTools,
   ...deployTools, ...attachmentTools, ...propertyTools, ...frontendTools,
-  ...bundleTools, ...knowledgeTools, ...relationshipTools,
+  ...bundleTools, ...knowledgeTools, ...relationshipTools, ...extraTools,
 ];
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

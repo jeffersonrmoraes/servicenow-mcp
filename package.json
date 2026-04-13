@@ -1,6 +1,6 @@
 {
   "name": "servicenow-mcp-server",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "MCP Server para desenvolvimento no ServiceNow via Claude, VS Code e Google Agentspace",
   "type": "module",
   "main": "src/index.ts",

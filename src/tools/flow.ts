@@ -1,4 +1,5 @@
 import { snGet, snPost, snPatch } from "../lib/client.js";
+import { validateSysId, validateLimit } from "../lib/validate.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Flow Designer
@@ -102,6 +103,7 @@ export async function handleFlowTool(name: string, args: any) {
 
     case "sn_get_flow": {
       if (args.sys_id) {
+        validateSysId(args.sys_id);
         const data = await snGet(`/api/now/table/sys_hub_flow/${args.sys_id}`, {}, args.env);
         return data.result;
       }
@@ -114,25 +116,29 @@ export async function handleFlowTool(name: string, args: any) {
     }
 
     case "sn_activate_flow": {
+      validateSysId(args.sys_id);
       const data = await snPatch(`/api/now/table/sys_hub_flow/${args.sys_id}`, { active: args.active }, args.env);
       return { sys_id: data.result.sys_id, name: data.result.name, active: data.result.active };
     }
 
     case "sn_trigger_flow": {
-      const body = { inputs: args.inputs || {} };
+      validateSysId(args.flow_sys_id);
+      const inputs: Record<string, any> = args.inputs && typeof args.inputs === "object" ? { ...args.inputs } : {};
       if (args.table && args.record_sys_id) {
-        body.inputs.table  = args.table;
-        body.inputs.sys_id = args.record_sys_id;
+        validateSysId(args.record_sys_id);
+        inputs.table  = args.table;
+        inputs.sys_id = args.record_sys_id;
       }
-      const data = await snPost(`/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`, body, args.env);
+      const data = await snPost(`/api/now/v1/flow_api/flow/${args.flow_sys_id}/run`, { inputs }, args.env);
       return data.result || data;
     }
 
     case "sn_list_flow_executions": {
-      // FIX: ordenação correta via query ^ORDERBYDESCsys_created_on
+      validateSysId(args.flow_sys_id);
+      const limit       = args.limit ? validateLimit(args.limit) : 10;
       const statusFilter = args.status ? `^status=${args.status}` : "";
       const data = await snGet("/api/now/table/sys_flow_context", {
-        sysparm_limit:  args.limit || 10,
+        sysparm_limit:  limit,
         sysparm_query:  `flow=${args.flow_sys_id}${statusFilter}^ORDERBYDESCsys_created_on`,
         sysparm_fields: "sys_id,flow,status,start_time,end_time,error,sys_created_on",
       }, args.env);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateTableName, validateSysId, validateLimit } from "../src/lib/validate.js";
+import { validateTableName, validateSysId, validateLimit, validateDataPayload, validateEncodedQuery } from "../src/lib/validate.js";
 
 // ── validateTableName ─────────────────────────
 
@@ -58,4 +58,50 @@ test("validateLimit: rejeita valores inválidos", () => {
 
 test("validateLimit: rejeita acima do máximo", () => {
   assert.throws(() => validateLimit(1001), /máximo/i);
+});
+
+// ── validateDataPayload ───────────────────────
+
+test("validateDataPayload: aceita objetos válidos", () => {
+  assert.doesNotThrow(() => validateDataPayload({ state: "1", priority: "2" }));
+  assert.doesNotThrow(() => validateDataPayload({ name: "test", active: true }));
+});
+
+test("validateDataPayload: rejeita valores não-objeto", () => {
+  assert.throws(() => validateDataPayload(null), /objeto JSON/i);
+  assert.throws(() => validateDataPayload("string"), /objeto JSON/i);
+  assert.throws(() => validateDataPayload([1, 2, 3]), /objeto JSON/i);
+  assert.throws(() => validateDataPayload(42), /objeto JSON/i);
+});
+
+test("validateDataPayload: rejeita objeto vazio", () => {
+  assert.throws(() => validateDataPayload({}), /vazio/i);
+});
+
+test("validateDataPayload: rejeita campos somente-leitura", () => {
+  assert.throws(() => validateDataPayload({ sys_id: "abc", name: "test" }), /somente leitura/i);
+  assert.throws(() => validateDataPayload({ sys_created_on: "2024-01-01" }), /somente leitura/i);
+  assert.throws(() => validateDataPayload({ sys_updated_by: "admin" }), /somente leitura/i);
+});
+
+// ── validateEncodedQuery ──────────────────────
+
+test("validateEncodedQuery: aceita queries válidas", () => {
+  assert.equal(validateEncodedQuery("active=true^priority=1"), "active=true^priority=1");
+  assert.equal(validateEncodedQuery(""), "");
+  assert.equal(validateEncodedQuery(null), "");
+  assert.equal(validateEncodedQuery(undefined), "");
+});
+
+test("validateEncodedQuery: rejeita tipo não-string", () => {
+  assert.throws(() => validateEncodedQuery(123), /string/i);
+  assert.throws(() => validateEncodedQuery({ q: 1 }), /string/i);
+});
+
+test("validateEncodedQuery: rejeita query muito longa", () => {
+  assert.throws(() => validateEncodedQuery("a".repeat(4001)), /tamanho máximo/i);
+});
+
+test("validateEncodedQuery: rejeita null bytes", () => {
+  assert.throws(() => validateEncodedQuery("active=true\0^priority=1"), /null byte/i);
 });

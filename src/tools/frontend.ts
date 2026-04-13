@@ -1,4 +1,6 @@
-import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
+import { snDelete } from "../lib/client.js";
+import { upsertRecord } from "../lib/helpers.js";
+import { ServiceNowEnv } from "../types.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Frontend & User Experience (v3.1)
@@ -40,8 +42,8 @@ export const frontendTools = [
         onclick:   { type: "string", description: "Função client-side (se client=true)" },
         condition: { type: "string", description: "Condição de visibilidade" },
         script:    { type: "string", description: "Script server-side" },
-        form_button:    { type: "boolean", default: true },
-        form_context_menu: { type: "boolean", default: false },
+        form_button:        { type: "boolean", default: true },
+        form_context_menu:  { type: "boolean", default: false },
         list_banner_button: { type: "boolean", default: false },
         active:    { type: "boolean", default: true },
       },
@@ -71,39 +73,29 @@ export const frontendTools = [
 //  HANDLERS
 // ─────────────────────────────────────────────
 
-import { ServiceNowEnv } from "../types.js";
-
 export async function handleFrontendTool(name: string, args: any) {
-  const env = args.env || null;
+  const env: ServiceNowEnv = args.env || null;
 
   if (name === "sn_manage_widget") {
     const { sys_id, ...data } = args;
-    const payload = {
+    return upsertRecord("sp_widget", sys_id, {
       name:          data.name,
-      id:            data.id || data.name.toLowerCase().replace(/\s+/g, '_'),
+      id:            data.id || data.name.toLowerCase().replace(/\s+/g, "_"),
       template:      data.template || "<div>New Widget Content</div>",
       css:           data.css || "",
       script:        data.script || "(function() { \n\n })();",
       client_script: data.client_script || "api.controller=function() { \n var c = this; \n };",
       public:        !!data.public,
       data_table:    data.data_table || "",
-    };
-
-    if (sys_id) {
-      const { result } = await snPatch(`/api/now/table/sp_widget/${sys_id}`, payload, env);
-      return { action: "updated", sys_id: result.sys_id, name: result.name, id: result.id };
-    } else {
-      const { result } = await snPost("/api/now/table/sp_widget", payload, env);
-      return { action: "created", sys_id: result.sys_id, name: result.name, id: result.id };
-    }
+    }, env, ["name", "id"]);
   }
 
   if (name === "sn_manage_ui_action") {
     const { sys_id, ...data } = args;
-    const payload = {
+    return upsertRecord("sys_ui_action", sys_id, {
       name:               data.name,
       table:              data.table,
-      action_name:        data.action_name || data.name.toLowerCase().replace(/\s+/g, '_'),
+      action_name:        data.action_name || data.name.toLowerCase().replace(/\s+/g, "_"),
       client:             !!data.client,
       onclick:            data.onclick || "",
       condition:          data.condition || "",
@@ -112,34 +104,18 @@ export async function handleFrontendTool(name: string, args: any) {
       form_context_menu:  !!data.form_context_menu,
       list_banner_button: !!data.list_banner_button,
       active:             data.active !== false,
-    };
-
-    if (sys_id) {
-      const { result } = await snPatch(`/api/now/table/sys_ui_action/${sys_id}`, payload, env);
-      return { action: "updated", sys_id: result.sys_id, name: result.name };
-    } else {
-      const { result } = await snPost("/api/now/table/sys_ui_action", payload, env);
-      return { action: "created", sys_id: result.sys_id, name: result.name };
-    }
+    }, env, ["name"]);
   }
 
   if (name === "sn_manage_ui_page") {
     const { sys_id, ...data } = args;
-    const payload = {
+    return upsertRecord("sys_ui_page", sys_id, {
       name:              data.name,
       html:              data.html || "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<j:jelly ... />",
       client_script:     data.client_script || "",
       processing_script: data.processing_script || "",
       description:       data.description || "",
-    };
-
-    if (sys_id) {
-      const { result } = await snPatch(`/api/now/table/sys_ui_page/${sys_id}`, payload, env);
-      return { action: "updated", sys_id: result.sys_id, name: result.name };
-    } else {
-      const { result } = await snPost("/api/now/table/sys_ui_page", payload, env);
-      return { action: "created", sys_id: result.sys_id, name: result.name };
-    }
+    }, env, ["name"]);
   }
 
   return null;

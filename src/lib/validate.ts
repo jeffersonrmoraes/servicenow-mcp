@@ -55,6 +55,26 @@ export function validateDataPayload(data: any, context = "data"): Record<string,
 }
 
 /**
+ * Valida uma encoded query fornecida pelo usuário.
+ * Bloqueia null bytes e padrões claramente maliciosos.
+ * NÃO valida sintaxe completa — o ServiceNow retornará erro se a query for inválida.
+ */
+export function validateEncodedQuery(query: any, fieldName = "query"): string {
+  if (query === null || query === undefined || query === "") return "";
+  if (typeof query !== "string") {
+    throw new Error(`O campo '${fieldName}' deve ser uma string (encoded query do ServiceNow).`);
+  }
+  if (query.length > 4000) {
+    throw new Error(`O campo '${fieldName}' excede o tamanho máximo permitido (4000 caracteres).`);
+  }
+  // Bloqueia null bytes
+  if (query.includes("\0")) {
+    throw new Error(`O campo '${fieldName}' contém caracteres inválidos (null byte).`);
+  }
+  return query;
+}
+
+/**
  * Valida e converte o limite de registros.
  */
 export function validateLimit(limit: any): number {

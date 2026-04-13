@@ -21,9 +21,10 @@ import { deployTools,       handleDeployTool       } from "./tools/deploy.js";
 import { attachmentTools,   handleAttachmentTool   } from "./tools/attachments.js";
 import { propertyTools,     handlePropertyTool     } from "./tools/properties.js";
 import { frontendTools,     handleFrontendTool     } from "./tools/frontend.js";
-import { bundleTools,       handleBundleTool        } from "./tools/bundle.js";
+import { bundleTools,       handleBundleTool       } from "./tools/bundle.js";
 import { knowledgeTools,    handleKnowledgeTool    } from "./tools/knowledge.js";
 import { relationshipTools, handleRelationshipTool } from "./tools/relationships.js";
+import { extraTools,        handleExtraTool        } from "./tools/extras.js";
 
 // ─────────────────────────────────────────────
 //  Interfaces (v4.0)
@@ -47,7 +48,12 @@ interface MCPResource {
 }
 
 // ─────────────────────────────────────────────
-//  Todas as ferramentas registradas (v3.9.0)
+//  Versão — fonte única de verdade
+// ─────────────────────────────────────────────
+const VERSION = "4.2.0";
+
+// ─────────────────────────────────────────────
+//  Todas as ferramentas registradas
 // ─────────────────────────────────────────────
 const ALL_TOOLS: ToolDefinition[] = [
   ...scriptTools,
@@ -61,23 +67,25 @@ const ALL_TOOLS: ToolDefinition[] = [
   ...bundleTools,
   ...knowledgeTools,
   ...relationshipTools,
+  ...extraTools,
 ];
 
 // ─────────────────────────────────────────────
 //  Roteamento O(1) — Map: toolName → handler
 // ─────────────────────────────────────────────
 const toolModules: { tools: ToolDefinition[], handler: ToolHandler }[] = [
-  { tools: scriptTools,     handler: handleScriptTool     },
-  { tools: catalogTools,    handler: handleCatalogTool    },
-  { tools: frontendTools,   handler: handleFrontendTool   },
-  { tools: flowTools,       handler: handleFlowTool       },
-  { tools: securityTools,   handler: handleSecurityTool   },
-  { tools: deployTools,     handler: handleDeployTool     },
-  { tools: attachmentTools, handler: handleAttachmentTool },
-  { tools: propertyTools,   handler: handlePropertyTool   },
-  { tools: bundleTools,     handler: handleBundleTool     },
-  { tools: knowledgeTools,  handler: handleKnowledgeTool  },
+  { tools: scriptTools,       handler: handleScriptTool       },
+  { tools: catalogTools,      handler: handleCatalogTool      },
+  { tools: frontendTools,     handler: handleFrontendTool     },
+  { tools: flowTools,         handler: handleFlowTool         },
+  { tools: securityTools,     handler: handleSecurityTool     },
+  { tools: deployTools,       handler: handleDeployTool       },
+  { tools: attachmentTools,   handler: handleAttachmentTool   },
+  { tools: propertyTools,     handler: handlePropertyTool     },
+  { tools: bundleTools,       handler: handleBundleTool       },
+  { tools: knowledgeTools,    handler: handleKnowledgeTool    },
   { tools: relationshipTools, handler: handleRelationshipTool },
+  { tools: extraTools,        handler: handleExtraTool        },
 ];
 
 const HANDLER_MAP = new Map<string, ToolHandler>();
@@ -135,7 +143,7 @@ function buildKnowledgeResources(): MCPResource[] {
 //  Server Definition
 // ─────────────────────────────────────────────
 const server = new Server(
-  { name: "servicenow-mcp-server", version: "4.1.0" },
+  { name: "servicenow-mcp-server", version: VERSION },
   { capabilities: { tools: {}, resources: {} } }
 );
 
@@ -230,7 +238,7 @@ await server.connect(transport);
 
 const resourceCount = buildKnowledgeResources().length;
 logger.info("ServiceNow MCP Server iniciado", {
-  version:   "4.1.0",
+  version:   VERSION,
   tools:     ALL_TOOLS.length,
   resources: resourceCount,
   log_level: process.env.SN_LOG_LEVEL || "info",
