@@ -1,4 +1,4 @@
-import { snGet, snPost, snPatch, snDelete } from "../lib/client.js";
+import { snGet, snPost, snPatch } from "../lib/client.js";
 import { validateLimit } from "../lib/validate.js";
 import { findByField, encodeQueryParam } from "../lib/helpers.js";
 
@@ -131,14 +131,7 @@ export async function handleSecurityTool(name: string, args: any) {
       }
 
       case "remove_role": {
-        const role = await findByField("sys_user_role", "name", data.role, env, `Role '${data.role}' não encontrada`);
-        const relData = await snGet("/api/now/table/sys_security_acl_role", {
-          sysparm_query: `sys_security_acl=${sys_id}^sys_user_role=${role.sys_id}`,
-          sysparm_limit: 1,
-        }, env);
-        if (!relData.result?.length) throw new Error("Relação ACL-Role não encontrada");
-        await snDelete(`/api/now/table/sys_security_acl_role/${relData.result[0].sys_id}`, env);
-        return { action: "role_removed", acl_sys_id: sys_id };
+        throw new Error("Operação de remoção desabilitada por política de segurança (v5.0). Use a interface do ServiceNow para remover roles de ACLs.");
       }
     }
   }
@@ -195,13 +188,7 @@ export async function handleSecurityTool(name: string, args: any) {
         }, env);
         return result;
       } else if (action === "remove") {
-        const rel = await snGet("/api/now/table/sys_user_grmember", {
-          sysparm_query: `group=${group.sys_id}^user=${user.sys_id}`,
-          sysparm_limit: 1,
-        }, env);
-        if (!rel.result?.length) throw new Error(`Membro '${data.user_name}' não pertence ao grupo '${data.group_name}'`);
-        await snDelete(`/api/now/table/sys_user_grmember/${rel.result[0].sys_id}`, env);
-        return { action: "removed", user: data.user_name, group: data.group_name };
+        throw new Error("Operação de remoção desabilitada por política de segurança (v5.0). Use a interface do ServiceNow para remover membros de grupos.");
       } else if (action === "list") {
         const { result } = await snGet("/api/now/table/sys_user_grmember", {
           sysparm_query:  `group=${group.sys_id}`,

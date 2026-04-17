@@ -4,7 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { scriptTools }       from '../tools/scripts.js';
+import { crudTools }         from '../tools/crud.js';
+import { metadataTools }     from '../tools/metadata.js';
+import { contextTools }      from '../tools/context.js';
+import { envTools }          from '../tools/envs.js';
 import { catalogTools }      from '../tools/catalog.js';
 import { flowTools }         from '../tools/flow.js';
 import { securityTools }     from '../tools/security.js';
@@ -18,7 +21,8 @@ import { relationshipTools } from '../tools/relationships.js';
 import { extraTools }        from '../tools/extras.js';
 
 const ALL_TOOLS = [
-  ...scriptTools, ...catalogTools, ...flowTools, ...securityTools,
+  ...crudTools, ...metadataTools, ...contextTools, ...envTools,
+  ...catalogTools, ...flowTools, ...securityTools,
   ...deployTools, ...attachmentTools, ...propertyTools, ...frontendTools,
   ...bundleTools, ...knowledgeTools, ...relationshipTools, ...extraTools,
 ];

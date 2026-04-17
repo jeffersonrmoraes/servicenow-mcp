@@ -9,7 +9,7 @@ import { ServiceNowEnv } from "../types.js";
 //  Upsert genérico (POST ou PATCH conforme sys_id)
 // ─────────────────────────────────────────────
 
-interface UpsertResult {
+export interface UpsertResult {
   action: "created" | "updated";
   sys_id: string;
   [key: string]: any;

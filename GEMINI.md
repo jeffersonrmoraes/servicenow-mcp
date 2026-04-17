@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v4.2.0)
+# GEMINI.md — Contexto do Projeto para IA (v5.0.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,40 +7,43 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `4.2.0`
-- **Descrição**: Servidor MCP que expõe 44 ferramentas para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
+- **Versão Atual**: `5.0.0`
+- **Descrição**: Servidor MCP que expõe 46 ferramentas e 4 prompts para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API) — 100% TypeScript com `tsx`.
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
 
 ---
 
-## Estrutura de Arquivos (v4.2.0)
+## Estrutura de Arquivos (v5.0.0)
 
 ```
 servicenow-mcp/
 ├── src/
-│   ├── index.ts               ← Orquestrador MCP Principal (roteamento O(1) via Map)
-│   ├── types.ts               ← Interfaces TypeScript compartilhadas
+│   ├── index.ts               ← Orquestrador MCP Principal (roteamento O(1) via Map + Prompts)
+│   ├── types.ts               ← Interfaces TypeScript compartilhadas (ToolDefinition, MCPResource, etc.)
 │   ├── dashboard/
 │   │   └── server.ts          ← API do Dashboard + OAuth Callback
 │   ├── lib/
-│   │   ├── client.ts          ← Cliente REST (Basic & Bearer Auth + cache + rate limit)
-│   │   ├── cache.ts           ← Cache TTL em memória (60s). Invalidação inteligente.
-│   │   ├── ratelimit.ts       ← Sliding window 10 req/s por ambiente com Backoff Assíncrono.
-│   │   ├── validate.ts        ← Validação de tableName, sys_id, limit
-│   │   ├── helpers.ts         ← Utilitários compartilhados
-│   │   └── logger.ts          ← Logger estruturado (stderr)
+│   │   ├── client.ts          ← Cliente REST (retry + backoff, OAuth refresh memory-only)
+│   │   ├── cache.ts           ← LRU Cache com TTL + eviction + métricas
+│   │   ├── ratelimit.ts       ← Sliding window 10 req/s read, 5 req/s write, por ambiente
+│   │   ├── validate.ts        ← Validação de tableName, sys_id, limit, payload, query
+│   │   ├── helpers.ts         ← Utilitários compartilhados (upsert, findByField, encodeQueryParam)
+│   │   └── logger.ts          ← Logger estruturado JSON (stderr)
 │   └── tools/
-│       ├── scripts.ts         ← Core CRUD + AI Context + sn_query_all + sn_list_envs
+│       ├── crud.ts            ← Core CRUD + clone + diff + search_global + list_envs
+│       ├── metadata.ts        ← Scripts de desenvolvimento + Schema + sanitização
+│       ├── context.ts         ← Gerador de contexto AI (sn_generate_ai_context)
+│       ├── envs.ts            ← Listagem de ambientes configurados
 │       ├── catalog.ts         ← Service Catalog (item, variável, categoria)
 │       ├── frontend.ts        ← UI/UX (Widget, UI Action, UI Page)
 │       ├── flow.ts            ← Flow Designer (get, activate, trigger, list, subflow, action)
-│       ├── security.ts        ← Segurança (ACLs, Notifications, Access)
+│       ├── security.ts        ← Segurança (ACLs, Notifications, Access) — sem delete
 │       ├── deploy.ts          ← Update Sets (create, set current, list, complete)
 │       ├── attachments.ts     ← Attachment API (upload, list, download)
 │       ├── properties.ts      ← System Properties (get, set, list)
 │       ├── bundle.ts          ← Leitura atômica de Catalog Items
-│       ├── knowledge.ts       ← Harvester incremental (sn_sync_knowledge_base)
+│       ├── knowledge.ts       ← Harvester incremental (async I/O)
 │       ├── relationships.ts   ← Mapeamento de dependências (get_dependencies, analyze_impact)
 │       └── extras.ts          ← Utilitários (health_check, choice, export, email_template)
 ├── knowledge/                 ← Metadados locais da instância (gerado pelo Harvester)
@@ -49,15 +52,17 @@ servicenow-mcp/
 │   ├── system/                ← Tabelas sys_
 │   └── state.json             ← Estado do sincronismo incremental
 ├── test/
-│   ├── cache.test.js
-│   ├── ratelimit.test.js
-│   ├── security-guards.test.js
-│   └── validate.test.js
+│   ├── cache.test.ts          ← Testes do LRU cache (inclui eviction)
+│   ├── ratelimit.test.ts      ← Testes do rate limiter
+│   ├── security-guards.test.ts ← Testes de segurança
+│   ├── validate.test.ts       ← Testes de validação
+│   ├── client.test.js         ← Testes do HTTP client (legacy)
+│   └── integration.test.js   ← Testes de integração (legacy)
 ├── AI_REFERENCE.md            ← Guia de uso para IAs consumidoras
 ├── GEMINI.md                  ← Este arquivo (contexto para desenvolvedores)
 ├── README.md                  ← Documentação pública
-├── package.json               ← v4.2.0 (scripts: start, dashboard, dev, test, type-check)
-└── tsconfig.json
+├── package.json               ← v5.0.0 (scripts: start, build, dashboard, dev, test, type-check)
+└── tsconfig.json              ← Com declaration, sourceMap, declarationMap
 ```
 
 ---
@@ -67,19 +72,19 @@ servicenow-mcp/
 | Item | Valor |
 |---|---|
 | Runtime | Node.js >= 18 (recomendado >= 20) |
-| Linguagem | TypeScript via `tsx` (sem build step — execução direta) |
+| Linguagem | TypeScript via `tsx` (dev) / `tsc` (build) |
 | Módulos | ESM (`"type": "module"`) — **nunca use `require()`** |
 | Dashboard | Express + Vanilla HTML/JS |
 | MCP Transport | Stdio |
-| Versão fonte única | `const VERSION = "4.2.0"` em `src/index.ts` e `"version"` em `package.json` |
+| Versão fonte única | `const VERSION = "5.0.0"` em `src/index.ts` e `"version"` em `package.json` |
 
 ---
 
 ## Padrão de Módulo de Ferramenta
 
 Todo arquivo em `src/tools/` deve exportar:
-1. Um array `ToolDefinition[]` com o nome do módulo (ex: `scriptTools`)
-2. Uma função `handleXxxTool(name: string, args: any): Promise<any>`
+1. Um array `ToolDefinition[]` com o nome do módulo (ex: `crudTools`)
+2. Uma função handler correspondente (ex: `handleCrudTool`)
 
 ```typescript
 // Exemplo mínimo
@@ -113,16 +118,19 @@ Após criar o módulo, registre-o em `src/index.ts` nos arrays `ALL_TOOLS` e `to
 
 | Função | Uso |
 |---|---|
-| `snGet(path, params, env?)` | GET — leitura com cache TTL automático |
-| `snPost(path, body, env?)` | POST — criação (invalida cache do path) |
-| `snPatch(path, body, env?)` | PATCH — atualização (invalida cache do path) |
-| `snDelete(path, env?)` | DELETE — remoção (invalida cache do path) |
+| `snGet(path, params, env?)` | GET — leitura com cache LRU + retry |
+| `snPost(path, body, env?)` | POST — criação (invalida cache, retry em 5xx) |
+| `snPatch(path, body, env?)` | PATCH — atualização (invalida cache, retry em 5xx) |
+| `snPostBinary(path, buffer, contentType, env?)` | Upload binário |
+| `snGetBinary(path, env?)` | Download binário (retorna Base64) |
 
-Todas as funções aplicam rate limit de 10 req/s por ambiente com backoff automático (aguarda liberar em vez de falhar).
+**Retry automático**: Até 3 tentativas com backoff exponencial (1s, 2s, 4s + jitter) para status 429, 500, 502, 503, 504.
 
-**Smart-URL**: O campo `SN_INSTANCE` aceita apenas o prefixo da instância (ex: `dev12345`). O cliente completa automaticamente para `https://dev12345.service-now.com`.
+**Smart-URL**: O campo `SN_INSTANCE` aceita apenas o prefixo (ex: `dev12345`) → `https://dev12345.service-now.com`.
 
-**Auth Priority**: `SN_OAUTH_ACCESS_TOKEN` se disponível; caso contrário `SN_USER`/`SN_PASSWORD` (Basic Auth).
+**Auth Priority**: `SN_OAUTH_ACCESS_TOKEN` > `SN_USER`/`SN_PASSWORD` (Basic Auth).
+
+**OAuth Refresh**: Tokens renovados ficam apenas em memória — nunca persistidos no `.env`.
 
 ---
 
@@ -134,57 +142,48 @@ Novas ferramentas CRUD devem importar de `lib/validate.ts`:
 import { validateTableName, validateSysId, validateLimit } from "../lib/validate.js";
 ```
 
-- `validateTableName(table)` — padrão `[a-zA-Z0-9_]+`
-- `validateSysId(sys_id)` — 32 caracteres hexadecimais
-- `validateLimit(limit)` — inteiro entre 1 e 1000
+---
+
+## Segurança (v5.0)
+
+1. **Delete completamente removido** — Nenhuma ferramenta executa operações DELETE.
+2. **Script sanitization** — Scripts passam por validação contra padrões destrutivos antes de envio.
+3. **OAuth memory-only** — Tokens renovados via refresh nunca são escritos em disco.
+4. **Input validation** — Todos os inputs são validados contra injection e tamanho.
 
 ---
 
 ## MCP Resources
 
-O servidor expõe os arquivos de `knowledge/` como MCP Resources no protocolo:
+O servidor expõe os arquivos de `knowledge/` como MCP Resources:
 
 - URI format: `knowledge://{category}/{tableName}`
 - Categorias: `core`, `custom`, `system`
-- Listagem via `ListResourcesRequestSchema`
-- Leitura via `ReadResourceRequestSchema`
 
-Agentes podem ler schemas de tabelas diretamente via Resources sem gastar chamadas de API.
+---
+
+## MCP Prompts (v5.0)
+
+O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_incident`, `analyze_table`, `onboarding_app`.
 
 ---
 
 ## Regras Importantes
 
 1. **Nunca use `require()`** — o projeto é 100% ESM.
-2. **Nunca use `fs.writeFileSync` ou `fs.readFileSync`** — use sempre `fs.promises.*` ou equivalente assíncrono.
-3. **Versão**: As atualizações devem acompanhar semantic versioning. Sempre atualize `VERSION` em `src/index.ts` E `"version"` em `package.json`.
-4. **Testes**: Ao adicionar nova lib em `src/lib/`, crie o teste correspondente em `test/`. Rode `npm test` antes de commitar.
-5. **Type-check**: Rode `npm run type-check` para validar TypeScript sem executar.
-6. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono) com mascaramento de senhas (`••••••••`).
+2. **Use `fs/promises`** para I/O de arquivos. Use `existsSync` apenas para checks de existência rápidos.
+3. **Versão**: Atualize `VERSION` em `src/index.ts` E `"version"` em `package.json`.
+4. **Testes**: TypeScript em `test/*.test.ts`. Rode `npm test` antes de commitar.
+5. **Type-check**: Rode `npm run type-check` para validar TypeScript.
+6. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono).
 7. **Knowledge First**: Sempre verifique `knowledge/` antes de assumir campos de uma tabela.
+8. **No Delete**: Nunca adicione operações DELETE. Política de segurança.
 
 ---
 
 ## Aplicação de Referência — Smart Onboarding AI
 
 Aplicação completa implementada via REST API no PDI `dev343269.service-now.com`. Serve como referência para desenvolvimento de apps ServiceNow via MCP.
-
-### Componentes implementados
-
-| Componente | Tipo | Nome/Tabela |
-|-----------|------|-------------|
-| Tabela de Requisições | Table (extends task) | `u_x_smart_onboarding_request` |
-| Tabela de Tarefas | Table (extends task) | `u_x_smart_onboarding_task` |
-| Script Include | OnboardingLogger | Logging centralizado |
-| Script Include | OnboardingValidator | Validação de payloads |
-| Script Include | OnboardingRuleEngine | Orquestrador de tarefas por departamento |
-| Business Rule | CreateTasksOnInsert | After Insert → chama RuleEngine |
-| Client Script | DepartmentOnChange | onChange → filtra campos por departamento |
-| UI Policy | RequireEmailForIT | Torna email obrigatório para dept IT |
-| Scripted REST API | smart_onboarding | `POST /api/1964763/smart_onboarding/request` |
-| Form Layout | Default view | 2 seções para request, 1 para task |
-| List Columns | Default view | 5 colunas por tabela |
-| Nav Menu | Smart Onboarding AI | 3 módulos: list request, list task, new request |
 
 ### Lições aprendidas (para futuros desenvolvimentos)
 
@@ -195,7 +194,7 @@ Aplicação completa implementada via REST API no PDI `dev343269.service-now.com
 5. `sys_ui_list_element` sem `list_id` é orphan — sempre criar o pai `sys_ui_list` primeiro
 6. Namespace de Scripted REST API é gerado automaticamente — descobrir via `sys_ws_definition`
 7. Choices criadas com `element` errado (sem `u_`) não aparecem no form — sempre usar o nome real do campo
-8. Queries `sysparm_query` com vírgulas nos valores devem usar `encodeURIComponent` — vírgulas cruas quebram o filtro silenciosamente
-9. `sys_ui_element` não tem campo `name` — queries `name=tabela` ignoram o filtro. Filtrar sempre por `sys_ui_section=<sys_id>`
-10. `view_name` em `sys_ui_section` / `sys_ui_list` não é auto-populado via REST — deve ser setado explicitamente como `"Default view"`
-11. Após criar/alterar form layout via REST, limpar o cache com `GET /cache.do` (espera redirect 302)
+8. Queries `sysparm_query` com vírgulas nos valores devem usar `encodeURIComponent`
+9. `sys_ui_element` não tem campo `name` — filtrar sempre por `sys_ui_section=<sys_id>`
+10. `view_name` em `sys_ui_section` / `sys_ui_list` não é auto-populado via REST
+11. Após criar/alterar form layout via REST, limpar o cache com `GET /cache.do`

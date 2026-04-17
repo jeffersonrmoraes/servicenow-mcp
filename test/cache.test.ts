@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cacheGet, cacheSet, cacheInvalidate, cacheClear } from "../src/lib/cache.js";
+import { cacheGet, cacheSet, cacheInvalidate, cacheClear, cacheStats } from "../src/lib/cache.js";
 
 test("cache: retorna undefined para chave inexistente", () => {
   assert.equal(cacheGet("chave-inexistente"), undefined);
@@ -39,4 +39,31 @@ test("cacheClear: limpa tudo", () => {
   cacheClear();
   assert.equal(cacheGet("a"), undefined);
   assert.equal(cacheGet("b"), undefined);
+});
+
+test("cache: LRU eviction quando atinge limite", () => {
+  cacheClear();
+  // Insere mais entradas do que o max (default 500)
+  // Usamos TTL longo para evitar expiração
+  for (let i = 0; i < 505; i++) {
+    cacheSet(`lru-key-${i}`, `value-${i}`, 60000);
+  }
+
+  const stats = cacheStats();
+  // Deve ter evictado entradas para caber no limite
+  assert.ok(stats.size <= stats.max, `Cache size (${stats.size}) deve ser <= max (${stats.max})`);
+  cacheClear();
+});
+
+test("cache: cacheStats retorna métricas corretas", () => {
+  cacheClear();
+  cacheSet("stat-1", "a");
+  cacheSet("stat-2", "b");
+
+  const stats = cacheStats();
+  assert.equal(stats.size, 2);
+  assert.equal(typeof stats.max, "number");
+  assert.equal(typeof stats.ttl_ms, "number");
+  assert.equal(stats.expired_pending, 0);
+  cacheClear();
 });

@@ -1,4 +1,3 @@
-import { snDelete } from "../lib/client.js";
 import { upsertRecord } from "../lib/helpers.js";
 import { ServiceNowEnv } from "../types.js";
 

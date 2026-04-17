@@ -2,15 +2,14 @@ import { cacheGet, cacheSet, cacheInvalidate } from "./cache.js";
 import { checkRateLimit } from "./ratelimit.js";
 import { logger } from "./logger.js";
 import { ServiceNowContext, ServiceNowEnv } from "../types.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 // ─────────────────────────────────────────────
 //  Config
 // ─────────────────────────────────────────────
 
 const REQUEST_TIMEOUT_MS = parseInt(process.env.SN_REQUEST_TIMEOUT_MS || "30000", 10);
+const MAX_RETRIES = parseInt(process.env.SN_MAX_RETRIES || "3", 10);
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 // ─────────────────────────────────────────────
 //  Context Resolution
@@ -73,6 +72,66 @@ async function fetchWithTimeout(url: string, options: RequestInit): Promise<Resp
 }
 
 // ─────────────────────────────────────────────
+//  Retry com Exponential Backoff (v5.0)
+// ─────────────────────────────────────────────
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  method: string,
+  path: string,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, options);
+
+      // Se retryable e ainda temos tentativas, aguarda e retenta
+      if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_RETRIES) {
+        const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        logger.warn("Retrying request", {
+          method,
+          path,
+          status: res.status,
+          attempt: attempt + 1,
+          maxRetries: MAX_RETRIES,
+          backoff_ms: Math.round(backoffMs),
+        });
+        await sleep(backoffMs);
+        continue;
+      }
+
+      return res;
+    } catch (err: any) {
+      lastError = err;
+
+      // Retry em timeout/network errors
+      if (attempt < MAX_RETRIES && (err.name === "AbortError" || err.code === "ECONNRESET" || err.code === "ENOTFOUND")) {
+        const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        logger.warn("Retrying after error", {
+          method,
+          path,
+          error: err.message,
+          attempt: attempt + 1,
+          backoff_ms: Math.round(backoffMs),
+        });
+        await sleep(backoffMs);
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw lastError || new Error(`Max retries (${MAX_RETRIES}) exceeded for ${method} ${path}`);
+}
+
+// ─────────────────────────────────────────────
 //  Parsing estruturado de erros HTTP
 // ─────────────────────────────────────────────
 
@@ -93,7 +152,7 @@ async function parseHttpError(res: Response, method: string, path: string): Prom
 }
 
 // ─────────────────────────────────────────────
-//  OAuth Refresh Token
+//  OAuth Refresh Token (v5.0 — memory-only)
 // ─────────────────────────────────────────────
 
 const _refreshLock = new Map<string, boolean>();
@@ -144,34 +203,13 @@ async function tryRefreshOAuth(env: ServiceNowEnv): Promise<boolean> {
       return false;
     }
 
-    // Atualiza process.env em memória
+    // v5.0: Tokens ficam APENAS em memória — não persiste no .env
     const accessKey  = prefix ? `${prefix}SN_OAUTH_ACCESS_TOKEN`  : "SN_OAUTH_ACCESS_TOKEN";
     const refreshKey = prefix ? `${prefix}SN_OAUTH_REFRESH_TOKEN` : "SN_OAUTH_REFRESH_TOKEN";
     process.env[accessKey] = data.access_token;
     if (data.refresh_token) process.env[refreshKey] = data.refresh_token;
 
-    // Persiste no .env se existir
-    try {
-      const envPath = path.resolve(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "../../.env"
-      );
-      if (fs.existsSync(envPath)) {
-        let content = fs.readFileSync(envPath, "utf8");
-        const updateLine = (k: string, v: string) => {
-          const re = new RegExp(`^${k}=.*$`, "m");
-          if (re.test(content)) content = content.replace(re, `${k}=${v}`);
-          else content += `\n${k}=${v}`;
-        };
-        updateLine(accessKey, data.access_token);
-        if (data.refresh_token) updateLine(refreshKey, data.refresh_token);
-        fs.writeFileSync(envPath, content, "utf8");
-      }
-    } catch (e: any) {
-      logger.warn("Não foi possível persistir o token renovado no .env", { error: e.message });
-    }
-
-    logger.info("OAuth access token renovado com sucesso.", { env: key });
+    logger.info("OAuth access token renovado com sucesso (memory-only).", { env: key });
     return true;
   } finally {
     _refreshLock.set(key, false);
@@ -191,7 +229,7 @@ function invalidateRelatedCaches(path: string) {
 }
 
 // ─────────────────────────────────────────────
-//  HTTP Methods
+//  HTTP Methods (v5.0 — with retry)
 // ─────────────────────────────────────────────
 
 export async function snGet(
@@ -214,14 +252,14 @@ export async function snGet(
   }
 
   const start = Date.now();
-  let res = await fetchWithTimeout(url.toString(), { headers: ctx.headers });
+  let res = await fetchWithRetry(url.toString(), { headers: ctx.headers }, "GET", path);
 
   // 401 → tenta refresh uma vez
   if (res.status === 401) {
     const refreshed = await tryRefreshOAuth(env);
     if (refreshed) {
       const newCtx = getContext(env);
-      res = await fetchWithTimeout(url.toString(), { headers: newCtx.headers });
+      res = await fetchWithRetry(url.toString(), { headers: newCtx.headers }, "GET", path);
     }
   }
 
@@ -238,21 +276,21 @@ export async function snPost(path: string, body: any, env: ServiceNowEnv = null)
   const ctx = getContext(env);
 
   const start = Date.now();
-  let res = await fetchWithTimeout(`${ctx.instance}${path}`, {
+  let res = await fetchWithRetry(`${ctx.instance}${path}`, {
     method:  "POST",
     headers: ctx.headers,
     body:    JSON.stringify(body),
-  });
+  }, "POST", path);
 
   if (res.status === 401) {
     const refreshed = await tryRefreshOAuth(env);
     if (refreshed) {
       const newCtx = getContext(env);
-      res = await fetchWithTimeout(`${newCtx.instance}${path}`, {
+      res = await fetchWithRetry(`${newCtx.instance}${path}`, {
         method:  "POST",
         headers: newCtx.headers,
         body:    JSON.stringify(body),
-      });
+      }, "POST", path);
     }
   }
 
@@ -267,21 +305,21 @@ export async function snPatch(path: string, body: any, env: ServiceNowEnv = null
   const ctx = getContext(env);
 
   const start = Date.now();
-  let res = await fetchWithTimeout(`${ctx.instance}${path}`, {
+  let res = await fetchWithRetry(`${ctx.instance}${path}`, {
     method:  "PATCH",
     headers: ctx.headers,
     body:    JSON.stringify(body),
-  });
+  }, "PATCH", path);
 
   if (res.status === 401) {
     const refreshed = await tryRefreshOAuth(env);
     if (refreshed) {
       const newCtx = getContext(env);
-      res = await fetchWithTimeout(`${newCtx.instance}${path}`, {
+      res = await fetchWithRetry(`${newCtx.instance}${path}`, {
         method:  "PATCH",
         headers: newCtx.headers,
         body:    JSON.stringify(body),
-      });
+      }, "PATCH", path);
     }
   }
 
@@ -289,33 +327,6 @@ export async function snPatch(path: string, body: any, env: ServiceNowEnv = null
   invalidateRelatedCaches(path);
   logger.debug("PATCH ok", { path, ms: Date.now() - start });
   return res.json();
-}
-
-export async function snDelete(path: string, env: ServiceNowEnv = null): Promise<any> {
-  await checkRateLimit(env, "DELETE");
-  const ctx = getContext(env);
-
-  const start = Date.now();
-  let res = await fetchWithTimeout(`${ctx.instance}${path}`, {
-    method:  "DELETE",
-    headers: ctx.headers,
-  });
-
-  if (res.status === 401) {
-    const refreshed = await tryRefreshOAuth(env);
-    if (refreshed) {
-      const newCtx = getContext(env);
-      res = await fetchWithTimeout(`${newCtx.instance}${path}`, {
-        method:  "DELETE",
-        headers: newCtx.headers,
-      });
-    }
-  }
-
-  if (!res.ok) throw await parseHttpError(res, "DELETE", path);
-  invalidateRelatedCaches(path);
-  logger.debug("DELETE ok", { path, ms: Date.now() - start });
-  return { deleted: true };
 }
 
 export async function snPostBinary(
@@ -331,11 +342,11 @@ export async function snPostBinary(
     "Authorization": ctx.headers["Authorization"],
     "Content-Type":  contentType,
   };
-  const res = await fetchWithTimeout(`${ctx.instance}${path}`, {
+  const res = await fetchWithRetry(`${ctx.instance}${path}`, {
     method:  "POST",
     headers: binaryHeaders,
     body:    bufferContent as any,
-  });
+  }, "POST_BINARY", path);
   if (!res.ok) throw await parseHttpError(res, "POST_BINARY", path);
   return res.json();
 }
@@ -343,7 +354,7 @@ export async function snPostBinary(
 export async function snGetBinary(path: string, env: ServiceNowEnv = null): Promise<string> {
   await checkRateLimit(env, "GET");
   const ctx = getContext(env);
-  const res = await fetchWithTimeout(`${ctx.instance}${path}`, { headers: ctx.headers });
+  const res = await fetchWithRetry(`${ctx.instance}${path}`, { headers: ctx.headers }, "GET_BINARY", path);
   if (!res.ok) throw await parseHttpError(res, "GET_BINARY", path);
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer).toString("base64");

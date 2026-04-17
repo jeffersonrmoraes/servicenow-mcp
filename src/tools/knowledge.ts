@@ -1,9 +1,10 @@
 import { snGet } from "../lib/client.js";
-import fs from 'fs';
-import path from 'path';
+import fs from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
 
 // ─────────────────────────────────────────────
-//  Interfaces (v4.0)
+//  Interfaces (v5.0)
 // ─────────────────────────────────────────────
 
 interface SyncState {
@@ -31,7 +32,7 @@ interface ServiceNowColumn {
 }
 
 // ─────────────────────────────────────────────
-//  TOOLS — Knowledge Harvester (v4.0)
+//  TOOLS — Knowledge Harvester (v5.0)
 // ─────────────────────────────────────────────
 
 export const knowledgeTools = [
@@ -73,11 +74,12 @@ export async function handleKnowledgeTool(name: string, args: any) {
       const knowledgeDir = path.resolve(process.cwd(), `knowledge`);
       const stateFile = path.join(knowledgeDir, "state.json");
       
-      // 1. Carregar Estado Incremental
+      // 1. Carregar Estado Incremental (async)
       let state: SyncState = {};
       try {
-        if (fs.existsSync(stateFile)) {
-          state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        if (existsSync(stateFile)) {
+          const raw = await fs.readFile(stateFile, "utf8");
+          state = JSON.parse(raw);
         }
       } catch {}
 
@@ -97,7 +99,7 @@ export async function handleKnowledgeTool(name: string, args: any) {
         }
       }
 
-      // Filtro Incremental (v4.0)
+      // Filtro Incremental
       if (lastSync) {
         query += `^sys_updated_on>=${lastSync.replace(".000Z", "").replace("T", " ")}`;
       }
@@ -120,8 +122,8 @@ export async function handleKnowledgeTool(name: string, args: any) {
       const categoryDir = path.join(knowledgeDir, category.toLowerCase());
       const syncTimestamp = new Date().toISOString();
 
-      if (!fs.existsSync(categoryDir)) {
-        fs.mkdirSync(categoryDir, { recursive: true });
+      if (!existsSync(categoryDir)) {
+        await fs.mkdir(categoryDir, { recursive: true });
       }
 
       for (const table of tables) {
@@ -153,23 +155,22 @@ export async function handleKnowledgeTool(name: string, args: any) {
             md += `| \`${col.element}\` | ${col.column_label} | ${typeValue} | ${refValue} | ${mandatory} |\n`;
         });
 
-        md += `\n\n---\n*Synced by ServiceNow MCP v4.0.0 on ${syncTimestamp}*`;
+        md += `\n\n---\n*Synced by ServiceNow MCP v5.0.0 on ${syncTimestamp}*`;
 
         try {
-          fs.writeFileSync(path.join(categoryDir, `${table.name}.md`), md, 'utf8');
+          await fs.writeFile(path.join(categoryDir, `${table.name}.md`), md, 'utf8');
           results.push(table.name);
         } catch (e: any) {
           results.push(`ERROR:${table.name}:${e.message}`);
         }
       }
 
-      // 6. Garbage Collection — remove .md de tabelas que não existem mais
+      // 6. Garbage Collection (async)
       let removed: string[] = [];
       if (cleanup && force) {
-        const existingFiles = fs.readdirSync(categoryDir).filter(f => f.endsWith(".md"));
+        const existingFiles = (await fs.readdir(categoryDir)).filter(f => f.endsWith(".md"));
         const syncedNames = new Set(tables.map((t: ServiceNowTable) => `${t.name}.md`));
 
-        // Para cleanup seguro, buscamos TODAS as tabelas da categoria (sem limit/offset)
         let allTableNames = new Set<string>();
         try {
           const allResp = await snGet("/api/now/table/sys_db_object", {
@@ -183,17 +184,17 @@ export async function handleKnowledgeTool(name: string, args: any) {
         for (const file of existingFiles) {
           if (allTableNames.size > 0 && !allTableNames.has(file)) {
             try {
-              fs.unlinkSync(path.join(categoryDir, file));
+              await fs.unlink(path.join(categoryDir, file));
               removed.push(file.replace(".md", ""));
             } catch {}
           }
         }
       }
 
-      // 7. Atualizar Estado e Índice
+      // 7. Atualizar Estado e Índice (async)
       if (!state[env]) state[env] = {};
       state[env][category] = syncTimestamp;
-      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), "utf8");
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2), "utf8");
 
       await updateIndex(process.cwd());
 
@@ -212,7 +213,7 @@ export async function handleKnowledgeTool(name: string, args: any) {
 
 async function updateIndex(baseDir: string) {
     const knowledgeRoot = path.join(baseDir, 'knowledge');
-    if (!fs.existsSync(knowledgeRoot)) return;
+    if (!existsSync(knowledgeRoot)) return;
 
     const generatedAt = new Date().toISOString();
 
@@ -220,30 +221,29 @@ async function updateIndex(baseDir: string) {
     indexMd += `Este diretório contém a documentação técnica da instância sincronizada via MCP Harvester.\n\n`;
     indexMd += `**Índice gerado em:** ${generatedAt}\n\n`;
 
-    const categories = fs.readdirSync(knowledgeRoot).filter(
-      f => fs.statSync(path.join(knowledgeRoot, f)).isDirectory()
-    ).sort();
+    const allEntries = await fs.readdir(knowledgeRoot, { withFileTypes: true });
+    const categories = allEntries
+      .filter(e => e.isDirectory())
+      .map(e => e.name)
+      .sort();
 
     for (const cat of categories) {
         const catDir = path.join(knowledgeRoot, cat);
-        if (fs.existsSync(catDir)) {
-            const files = fs.readdirSync(catDir).filter(f => f.endsWith('.md'));
-            indexMd += `## ${cat.toUpperCase()} Tables (${files.length})\n`;
+        const files = (await fs.readdir(catDir)).filter(f => f.endsWith('.md'));
+        indexMd += `## ${cat.toUpperCase()} Tables (${files.length})\n`;
 
-            files.sort().forEach(f => {
-                const tableName = f.replace('.md', '');
-                // Tenta extrair o timestamp de sincronização do arquivo
-                let syncInfo = "";
-                try {
-                  const content = fs.readFileSync(path.join(catDir, f), 'utf8');
-                  const match = content.match(/\*\*Last Synced:\*\* (.+)/);
-                  if (match) syncInfo = ` _(${match[1].substring(0, 10)})_`;
-                } catch {}
-                indexMd += `- [${tableName}](./${cat}/${f})${syncInfo}\n`;
-            });
-            indexMd += `\n`;
+        for (const f of files.sort()) {
+            const tableName = f.replace('.md', '');
+            let syncInfo = "";
+            try {
+              const content = await fs.readFile(path.join(catDir, f), 'utf8');
+              const match = content.match(/\*\*Last Synced:\*\* (.+)/);
+              if (match) syncInfo = ` _(${match[1].substring(0, 10)})_`;
+            } catch {}
+            indexMd += `- [${tableName}](./${cat}/${f})${syncInfo}\n`;
         }
+        indexMd += `\n`;
     }
 
-    fs.writeFileSync(path.join(knowledgeRoot, 'INDEX.md'), indexMd, 'utf8');
+    await fs.writeFile(path.join(knowledgeRoot, 'INDEX.md'), indexMd, 'utf8');
 }

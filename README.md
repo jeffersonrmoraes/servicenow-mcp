@@ -1,13 +1,13 @@
 # ServiceNow MCP Server
 
-[![v4.2.0](https://img.shields.io/badge/version-4.2.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v5.0.0](https://img.shields.io/badge/version-5.0.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
 
-**v4.2.0** — 44 ferramentas ativas, roteamento O(1) por Map, MCP Resources (schemas locais via `knowledge://`), suporte a múltiplos ambientes com prefixo, TypeScript nativo com `tsx`.
+**v5.0.0** — 46 ferramentas ativas, 4 MCP Prompts, LRU cache com eviction, retry com backoff exponencial, arquitetura modular (15 módulos), TypeScript nativo com `tsx` + build step.
 
 ---
 
@@ -22,8 +22,9 @@ O **ServiceNow MCP Server** é um conector de alta performance que permite que a
   - [VS Code + GitHub Copilot](#vs-code--github-copilot)
   - [Antigravity (Google Agentspace)](#antigravity-google-agentspace)
 - [Incremental Harvester](#incremental-harvester)
-- [Testes](#testes)
+- [Build & Testes](#build--testes)
 - [Ferramentas Disponíveis](#ferramentas-disponíveis)
+- [MCP Prompts](#mcp-prompts)
 - [Changelog](#changelog)
 
 ---
@@ -67,7 +68,9 @@ PROD_SN_PASSWORD=senha_prod
 
 # Opcional: ajustes de performance
 SN_CACHE_TTL_MS=60000
+SN_CACHE_MAX_ENTRIES=500
 SN_REQUEST_TIMEOUT_MS=30000
+SN_MAX_RETRIES=3
 SN_LOG_LEVEL=info
 ```
 
@@ -159,28 +162,27 @@ Os schemas ficam em `knowledge/core/`, `knowledge/custom/` e `knowledge/system/`
 
 ---
 
-## Testes
+## Build & Testes
 
 ```bash
-npm test
-```
+# Type-check sem build
+npm run type-check
 
-Os testes utilizam `tsx --test` para validar a lógica em TypeScript diretamente.
+# Build para produção (gera dist/)
+npm run build
+
+# Testes (TypeScript direto)
+npm test
+
+# Modo desenvolvimento com hot-reload
+npm run dev
+```
 
 ---
 
 ## Ferramentas Disponíveis
 
-44 ferramentas organizadas em 12 módulos.
-
-### IA & Contexto
-
-| Ferramenta | Descrição |
-|---|---|
-| `sn_sync_knowledge_base` | Sincroniza metadados localmente (incremental via `state.json`, com garbage collection opcional) |
-| `sn_get_dependencies` | Lista todas as tabelas referenciadas por uma tabela (Outbound Relationships) |
-| `sn_analyze_impact` | Lista todas as tabelas que referenciam uma tabela (Inbound Relationships) |
-| `sn_generate_ai_context` | Gera context window otimizado para o agente cruzando o registro com o schema local |
+46 ferramentas organizadas em 15 módulos.
 
 ### Core CRUD
 
@@ -192,7 +194,9 @@ Os testes utilizam `tsx --test` para validar a lógica em TypeScript diretamente
 | `sn_create_record` | Cria registro genérico em qualquer tabela |
 | `sn_update_record` | Atualiza campos de qualquer registro pelo `sys_id` |
 | `sn_bulk_update` | Atualiza múltiplos registros por encoded query (até 500 registros) |
-| `sn_delete_record` | Remove um registro pelo `sys_id` |
+| `sn_clone_record` | Duplica um registro removendo campos sys_* somente-leitura |
+| `sn_diff_records` | Compara o mesmo registro entre dois ambientes (ex: DEV vs PROD) |
+| `sn_search_global` | Busca textual em múltiplas tabelas simultaneamente |
 | `sn_list_envs` | Lista todos os ambientes configurados no `.env` com seus prefixos |
 
 ### Metadados & Código
@@ -200,8 +204,17 @@ Os testes utilizam `tsx --test` para validar a lógica em TypeScript diretamente
 | Ferramenta | Descrição |
 |---|---|
 | `sn_upsert_metadata_script` | Cria ou atualiza Business Rules, Script Includes, Client Scripts, UI Policies, Scheduled Jobs |
-| `sn_execute_script` | Executa scripts no servidor via Scripted REST customizada (Background Scripts) |
+| `sn_execute_script` | Executa scripts no servidor via Scripted REST (com sanitização de segurança) |
 | `sn_manage_schema` | Criação de tabelas e campos com tipos nativos do ServiceNow |
+
+### IA & Contexto
+
+| Ferramenta | Descrição |
+|---|---|
+| `sn_sync_knowledge_base` | Sincroniza metadados localmente (incremental via `state.json`, com garbage collection) |
+| `sn_get_dependencies` | Lista tabelas referenciadas por uma tabela (Outbound Relationships) |
+| `sn_analyze_impact` | Lista tabelas que referenciam uma tabela (Inbound Relationships) |
+| `sn_generate_ai_context` | Gera context window otimizado cruzando o registro com o schema local |
 
 ### Front-end & UX
 
@@ -216,27 +229,27 @@ Os testes utilizam `tsx --test` para validar a lógica em TypeScript diretamente
 | Ferramenta | Descrição |
 |---|---|
 | `sn_manage_catalog_item` | Cria ou atualiza itens do Service Catalog |
-| `sn_manage_catalog_variable` | Cria ou atualiza variáveis de um Catalog Item (Text, Select, Reference, etc.) |
+| `sn_manage_catalog_variable` | Cria ou atualiza variáveis de um Catalog Item |
 | `sn_manage_catalog_category` | Cria ou atualiza categorias no Service Catalog |
-| `sn_get_catalog_item_bundle` | Leitura atômica: retorna configurações, variáveis e client scripts de um Catalog Item |
+| `sn_get_catalog_item_bundle` | Leitura atômica: configurações, variáveis e client scripts de um Catalog Item |
 
 ### Flow Designer
 
 | Ferramenta | Descrição |
 |---|---|
 | `sn_get_flow` | Busca um Flow pelo nome ou `sys_id` |
-| `sn_activate_flow` | Ativa ou desativa um Flow no Flow Designer |
+| `sn_activate_flow` | Ativa ou desativa um Flow |
 | `sn_trigger_flow` | Dispara um Flow manualmente via API |
-| `sn_list_flow_executions` | Lista execuções recentes de um Flow para monitoramento e debug |
-| `sn_create_subflow` | Cria um Subflow reutilizável no Flow Designer |
-| `sn_create_flow_action` | Cria uma Action customizada reutilizável no Flow Designer |
+| `sn_list_flow_executions` | Lista execuções recentes para monitoramento e debug |
+| `sn_create_subflow` | Cria um Subflow reutilizável |
+| `sn_create_flow_action` | Cria uma Action customizada reutilizável |
 
 ### Segurança & Acesso
 
 | Ferramenta | Descrição |
 |---|---|
-| `sn_manage_acl` | Gestão completa de ACLs e roles associadas (upsert, add_role, remove_role) |
-| `sn_manage_notification` | Gestão de notificações de email (eventos, destinatários, templates) |
+| `sn_manage_acl` | Gestão de ACLs e roles associadas (upsert, list, add_role) |
+| `sn_manage_notification` | Gestão de notificações de email |
 | `sn_manage_access` | Gestão de Roles, Grupos e acessos de usuários |
 
 ### Deploy & Update Sets
@@ -244,34 +257,57 @@ Os testes utilizam `tsx --test` para validar a lógica em TypeScript diretamente
 | Ferramenta | Descrição |
 |---|---|
 | `sn_create_update_set` | Cria um Update Set |
-| `sn_set_current_update_set` | Define o Update Set atual para capturar as próximas mudanças |
-| `sn_list_update_sets` | Lista Update Sets disponíveis (filtro por estado: in progress, complete, ignore) |
-| `sn_complete_update_set` | Marca um Update Set como completo (pronto para exportação) |
+| `sn_set_current_update_set` | Define o Update Set atual |
+| `sn_list_update_sets` | Lista Update Sets disponíveis |
+| `sn_complete_update_set` | Marca um Update Set como completo |
 
 ### Attachments
 
 | Ferramenta | Descrição |
 |---|---|
-| `sn_upload_attachment` | Faz upload de arquivo (Base64) como anexo em qualquer registro |
+| `sn_upload_attachment` | Faz upload de arquivo (Base64) como anexo |
 | `sn_list_attachments` | Lista todos os anexos de um registro |
-| `sn_download_attachment` | Baixa o conteúdo de um anexo e retorna em Base64 |
+| `sn_download_attachment` | Baixa o conteúdo de um anexo em Base64 |
 
 ### System Properties
 
 | Ferramenta | Descrição |
 |---|---|
 | `sn_get_sys_property` | Busca o valor de uma System Property pelo nome |
-| `sn_set_sys_property` | Cria ou atualiza uma System Property (upsert) com suporte a mascaramento de senhas |
-| `sn_list_sys_properties` | Lista System Properties filtrando por prefixo de nome |
+| `sn_set_sys_property` | Cria ou atualiza uma System Property (upsert) |
+| `sn_list_sys_properties` | Lista System Properties filtrando por prefixo |
 
 ### Utilitários
 
 | Ferramenta | Descrição |
 |---|---|
-| `sn_health_check` | Testa a conectividade com a instância e retorna versão, instância e usuário autenticado |
-| `sn_manage_choice` | Gerencia opções de campos Choice (`sys_choice`): listar, criar ou atualizar |
-| `sn_export_records` | Exporta registros de uma tabela em JSON ou CSV (até 1000 registros) |
-| `sn_manage_email_template` | Cria, atualiza ou lista templates de email reutilizáveis (`sysevent_email_template`) |
+| `sn_health_check` | Testa conectividade e retorna versão, instância e usuário |
+| `sn_manage_choice` | Gerencia opções de campos Choice (`sys_choice`) |
+| `sn_export_records` | Exporta registros em JSON ou CSV (até 1000 registros) |
+| `sn_manage_email_template` | Gerencia templates de email reutilizáveis |
+
+---
+
+## MCP Prompts
+
+O servidor v5.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflows comuns:
+
+| Prompt | Descrição |
+|---|---|
+| `create_business_rule` | Guia passo-a-passo para criar uma Business Rule |
+| `debug_incident` | Workflow para investigar e diagnosticar um incident |
+| `analyze_table` | Análise completa: schema, dependencies, ACLs, scripts |
+| `onboarding_app` | Scaffold de uma aplicação de onboarding completa |
+
+---
+
+## Segurança (v5.0)
+
+- **Operações de delete**: Completamente removidas por política de segurança. Use a interface do ServiceNow para operações destrutivas.
+- **Script sanitization**: `sn_execute_script` e `sn_upsert_metadata_script` bloqueiam operações perigosas (`deleteMultiple`, `Packages.java`, `Runtime`, etc.).
+- **OAuth tokens**: Armazenados apenas em memória durante a sessão. Nunca persistidos em `.env` via código.
+- **Retry**: Backoff exponencial automático para erros 429, 500, 502, 503, 504.
+- **LRU Cache**: Limite máximo de entradas para prevenir memory leaks.
 
 ---
 
@@ -279,6 +315,7 @@ Os testes utilizam `tsx --test` para validar a lógica em TypeScript diretamente
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **v5.0.0** | 2026-04-17 | 46 ferramentas. Arquitetura split (15 módulos). LRU cache com eviction. Retry com exponential backoff. MCP Prompts (4). Novos tools: `sn_clone_record`, `sn_diff_records`, `sn_search_global`. Script sanitization. OAuth memory-only. Delete completamente removido. Testes migrados para TypeScript. Build step com `tsc`. |
 | **v4.2.0** | 2026-04-13 | 44 ferramentas ativas. Novos módulos: `sn_query_all`, `sn_list_envs`, `sn_manage_ui_page`, `sn_activate_flow`, `sn_list_flow_executions`, `sn_create_subflow`, `sn_create_flow_action`, `sn_set_current_update_set`, `sn_list_update_sets`, `sn_complete_update_set`, `sn_export_records`, `sn_manage_email_template`. |
 | **v4.0.0** | 2026-04-08 | Migração completa para TypeScript. Harvester incremental via `state.json`. `sn_get_dependencies` e `sn_analyze_impact`. ESM nativo com `tsx`. |
 | **v3.9.0** | 2026-04-08 | MCP Resources: exposição de `knowledge/` como `knowledge://category/table`. Rate limiter com backoff inteligente. Paginação por offset. |

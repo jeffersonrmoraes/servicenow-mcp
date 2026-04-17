@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import 'dotenv/config';
-import fs   from "fs";
+import fs   from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { logger } from "./lib/logger.js";
 
@@ -11,9 +12,19 @@ import {
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { scriptTools,       handleScriptTool       } from "./tools/scripts.js";
+import { ToolDefinition, ToolHandler, MCPResource } from "./types.js";
+
+// ─────────────────────────────────────────────
+//  Tool Modules (v5.0 — split architecture)
+// ─────────────────────────────────────────────
+import { crudTools,         handleCrudTool         } from "./tools/crud.js";
+import { metadataTools,     handleMetadataTool     } from "./tools/metadata.js";
+import { contextTools,      handleContextTool      } from "./tools/context.js";
+import { envTools,          handleEnvTool          } from "./tools/envs.js";
 import { catalogTools,      handleCatalogTool      } from "./tools/catalog.js";
 import { flowTools,         handleFlowTool         } from "./tools/flow.js";
 import { securityTools,     handleSecurityTool     } from "./tools/security.js";
@@ -27,36 +38,18 @@ import { relationshipTools, handleRelationshipTool } from "./tools/relationships
 import { extraTools,        handleExtraTool        } from "./tools/extras.js";
 
 // ─────────────────────────────────────────────
-//  Interfaces (v4.0)
-// ─────────────────────────────────────────────
-
-interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: object;
-}
-
-interface ToolHandler {
-  (name: string, args: any): Promise<any>;
-}
-
-interface MCPResource {
-  uri: string;
-  name: string;
-  description: string;
-  mimeType: string;
-}
-
-// ─────────────────────────────────────────────
 //  Versão — fonte única de verdade
 // ─────────────────────────────────────────────
-const VERSION = "4.2.0";
+const VERSION = "5.0.0";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas
 // ─────────────────────────────────────────────
 const ALL_TOOLS: ToolDefinition[] = [
-  ...scriptTools,
+  ...crudTools,
+  ...metadataTools,
+  ...contextTools,
+  ...envTools,
   ...catalogTools,
   ...frontendTools,
   ...flowTools,
@@ -74,7 +67,10 @@ const ALL_TOOLS: ToolDefinition[] = [
 //  Roteamento O(1) — Map: toolName → handler
 // ─────────────────────────────────────────────
 const toolModules: { tools: ToolDefinition[], handler: ToolHandler }[] = [
-  { tools: scriptTools,       handler: handleScriptTool       },
+  { tools: crudTools,         handler: handleCrudTool         },
+  { tools: metadataTools,     handler: handleMetadataTool     },
+  { tools: contextTools,      handler: handleContextTool      },
+  { tools: envTools,          handler: handleEnvTool          },
   { tools: catalogTools,      handler: handleCatalogTool      },
   { tools: frontendTools,     handler: handleFrontendTool     },
   { tools: flowTools,         handler: handleFlowTool         },
@@ -102,27 +98,25 @@ for (const { tools, handler } of toolModules) {
 const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
 
 /**
- * Varre o diretório knowledge/ e retorna uma lista de MCP Resources,
- * um por arquivo Markdown de schema de tabela.
+ * Varre o diretório knowledge/ e retorna uma lista de MCP Resources.
+ * Usa async I/O para não bloquear o event loop (v5.0).
  */
-function buildKnowledgeResources(): MCPResource[] {
+async function buildKnowledgeResources(): Promise<MCPResource[]> {
   const resources: MCPResource[] = [];
-  if (!fs.existsSync(KNOWLEDGE_DIR)) return resources;
+  if (!existsSync(KNOWLEDGE_DIR)) return resources;
 
-  const categories = fs.readdirSync(KNOWLEDGE_DIR).filter(
-    f => fs.statSync(path.join(KNOWLEDGE_DIR, f)).isDirectory()
-  );
+  const entries = await fs.readdir(KNOWLEDGE_DIR, { withFileTypes: true });
+  const categories = entries.filter(e => e.isDirectory()).map(e => e.name);
 
   for (const cat of categories) {
     const catDir = path.join(KNOWLEDGE_DIR, cat);
-    const files  = fs.readdirSync(catDir).filter(f => f.endsWith(".md"));
+    const files  = (await fs.readdir(catDir)).filter(f => f.endsWith(".md"));
 
     for (const file of files) {
       const tableName = file.replace(".md", "");
-      // Tenta extrair o label da primeira linha do MD
       let label = tableName;
       try {
-        const firstLine = fs.readFileSync(path.join(catDir, file), "utf8").split("\n")[0];
+        const firstLine = (await fs.readFile(path.join(catDir, file), "utf8")).split("\n")[0];
         const match = firstLine.match(/# ServiceNow Table: (.+?) \(/);
         if (match) label = match[1].trim();
       } catch {}
@@ -140,11 +134,148 @@ function buildKnowledgeResources(): MCPResource[] {
 }
 
 // ─────────────────────────────────────────────
-//  Server Definition
+//  MCP Prompts — Templates de desenvolvimento (v5.0)
+// ─────────────────────────────────────────────
+
+const MCP_PROMPTS = [
+  {
+    name: "create_business_rule",
+    description: "Guia passo-a-passo para criar uma Business Rule no ServiceNow via MCP.",
+    arguments: [
+      { name: "table", description: "Tabela alvo (ex: incident)", required: true },
+      { name: "when", description: "Quando executar: before, after, async, display", required: false },
+      { name: "action", description: "Eventos: insert, update, delete", required: false },
+    ],
+  },
+  {
+    name: "debug_incident",
+    description: "Workflow completo para investigar e diagnosticar um incident específico.",
+    arguments: [
+      { name: "number", description: "Número do incident (ex: INC0010001)", required: true },
+    ],
+  },
+  {
+    name: "analyze_table",
+    description: "Análise completa de uma tabela: schema, dependencies, ACLs e registros recentes.",
+    arguments: [
+      { name: "table", description: "Nome da tabela a analisar (ex: incident)", required: true },
+    ],
+  },
+  {
+    name: "onboarding_app",
+    description: "Scaffold completo de uma aplicação de onboarding no ServiceNow: tabelas, scripts, REST API, catalog items.",
+    arguments: [
+      { name: "app_name", description: "Nome da aplicação (ex: Smart Onboarding AI)", required: true },
+    ],
+  },
+];
+
+function getPromptMessages(name: string, args: Record<string, string>): any[] {
+  switch (name) {
+    case "create_business_rule":
+      return [{
+        role: "user",
+        content: {
+          type: "text",
+          text: `Preciso criar uma Business Rule no ServiceNow. Use as ferramentas MCP disponíveis para:
+
+1. Primeiro, consulte o schema da tabela '${args.table || "incident"}' usando sn_sync_knowledge_base ou sn_generate_ai_context para entender os campos disponíveis
+2. Gere o script da Business Rule seguindo best practices do ServiceNow:
+   - When: ${args.when || "after"}
+   - Action: ${args.action || "insert,update"}
+   - Table: ${args.table || "incident"}
+3. Use sn_upsert_metadata_script com type="business_rule" para criar a regra
+4. Valide que a regra foi criada corretamente com sn_get_record
+
+Siga as convenções:
+- Prefixo 'u_' para campos customizados em escopo global
+- Sempre defina condition para evitar execução desnecessária
+- Use GlideRecord ao invés de GlideAggregate quando possível para operações simples`,
+        },
+      }];
+
+    case "debug_incident":
+      return [{
+        role: "user",
+        content: {
+          type: "text",
+          text: `Investigue o incident '${args.number}' no ServiceNow:
+
+1. Use sn_query_records na tabela 'incident' com query number=${args.number}
+2. Analise os campos: state, priority, assignment_group, assigned_to, short_description
+3. Busque o histórico de atividades com sn_query_records em sys_journal_field com element_id=<sys_id do incident>
+4. Verifique se há Business Rules ativas na tabela incident que podem estar causando problemas
+5. Se houver worknotes ou comments, inclua no diagnóstico
+6. Apresente um resumo estruturado com: status atual, timeline, e recomendações`,
+        },
+      }];
+
+    case "analyze_table":
+      return [{
+        role: "user",
+        content: {
+          type: "text",
+          text: `Faça uma análise completa da tabela '${args.table}' no ServiceNow:
+
+1. Use sn_sync_knowledge_base para garantir que o schema local está atualizado
+2. Use sn_get_dependencies para listar as tabelas que '${args.table}' referencia (outbound)
+3. Use sn_analyze_impact para listar as tabelas que referenciam '${args.table}' (inbound)
+4. Liste as ACLs ativas com sn_manage_acl action=list table=${args.table}
+5. Busque as Business Rules ativas: sn_query_records table=sys_script query=collection=${args.table}^active=true
+6. Busque os Client Scripts ativos: sn_query_records table=sys_script_client query=table=${args.table}^active=true
+7. Conte os registros totais: sn_query_records table=${args.table} limit=1 (use o count do header)
+
+Apresente um relatório completo com:
+- Schema summary (campos, tipos, referências)
+- Mapa de dependências (inbound e outbound)
+- Regras de negócio ativas
+- Scripts client-side
+- Recomendações de segurança e performance`,
+        },
+      }];
+
+    case "onboarding_app":
+      return [{
+        role: "user",
+        content: {
+          type: "text",
+          text: `Crie uma aplicação completa de onboarding chamada '${args.app_name || "Smart Onboarding"}' no ServiceNow:
+
+1. **Tabelas** (use sn_manage_schema):
+   - u_onboarding_request (extends task): campos para department, start_date, employee_name, employee_email
+   - u_onboarding_task (extends task): campos para parent_request (reference), task_type (choice)
+
+2. **Script Includes** (use sn_upsert_metadata_script type=script_include):
+   - OnboardingValidator: validação de payloads
+   - OnboardingRuleEngine: criação automática de tarefas por departamento
+
+3. **Business Rules** (use sn_upsert_metadata_script type=business_rule):
+   - After insert em u_onboarding_request → chama OnboardingRuleEngine
+
+4. **Client Scripts** (use sn_upsert_metadata_script type=client_script):
+   - onChange de department → filtra campos relevantes
+
+5. **Catalog Item** (use sn_manage_catalog_item + sn_manage_catalog_variable):
+   - Formulário de solicitação com variáveis
+
+Siga a referência do Smart Onboarding AI documentada no GEMINI.md.`,
+        },
+      }];
+
+    default:
+      return [{
+        role: "user",
+        content: { type: "text", text: "Prompt não encontrado." },
+      }];
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Server Definition (v5.0)
 // ─────────────────────────────────────────────
 const server = new Server(
   { name: "servicenow-mcp-server", version: VERSION },
-  { capabilities: { tools: {}, resources: {} } }
+  { capabilities: { tools: {}, resources: {}, prompts: {} } }
 );
 
 // ── List Tools ──
@@ -179,14 +310,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // ── List Resources — expõe knowledge/ como MCP Resources ──
 server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-  resources: buildKnowledgeResources(),
+  resources: await buildKnowledgeResources(),
 }));
 
 // ── Read Resource — retorna o conteúdo de um arquivo do knowledge/ ──
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const { uri } = request.params;
 
-  // URI format: knowledge://{category}/{tableName}
   const match = uri.match(/^knowledge:\/\/([^/]+)\/(.+)$/);
   if (!match) {
     throw new Error(`URI de recurso inválida: '${uri}'. Formato esperado: knowledge://category/tableName`);
@@ -195,11 +325,11 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const [, category, tableName] = match;
   const filePath = path.join(KNOWLEDGE_DIR, category, `${tableName}.md`);
 
-  if (!fs.existsSync(filePath)) {
+  if (!existsSync(filePath)) {
     throw new Error(`Recurso não encontrado: '${uri}'. Execute sn_sync_knowledge_base para sincronizar.`);
   }
 
-  const text = fs.readFileSync(filePath, "utf8");
+  const text = await fs.readFile(filePath, "utf8");
 
   return {
     contents: [
@@ -209,6 +339,25 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         text,
       },
     ],
+  };
+});
+
+// ── List Prompts (v5.0) ──
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+  prompts: MCP_PROMPTS,
+}));
+
+// ── Get Prompt (v5.0) ──
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  const prompt = MCP_PROMPTS.find(p => p.name === name);
+  if (!prompt) {
+    throw new Error(`Prompt desconhecido: '${name}'`);
+  }
+
+  return {
+    description: prompt.description,
+    messages: getPromptMessages(name, args || {}),
   };
 });
 
@@ -236,12 +385,14 @@ validateEnv();
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-const resourceCount = buildKnowledgeResources().length;
+const resources = await buildKnowledgeResources();
 logger.info("ServiceNow MCP Server iniciado", {
   version:   VERSION,
   tools:     ALL_TOOLS.length,
-  resources: resourceCount,
+  resources: resources.length,
+  prompts:   MCP_PROMPTS.length,
   log_level: process.env.SN_LOG_LEVEL || "info",
   cache_ttl: process.env.SN_CACHE_TTL_MS || "60000",
   timeout:   process.env.SN_REQUEST_TIMEOUT_MS || "30000",
+  retries:   process.env.SN_MAX_RETRIES || "3",
 });

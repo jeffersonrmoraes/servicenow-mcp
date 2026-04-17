@@ -2,24 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handleSecurityTool } from "../src/tools/security.js";
 
-// Mock do lib/client.js — substituído por um módulo que retorna resultados vazios
-// Como ESM não suporta mock nativo sem loaders, testamos o comportamento de erro
-// simulando os guards diretamente pela asserção de throw.
-
-// Helper: cria um mock de snGet que retorna resultado vazio
-function mockEmptyResult() {
-  return { result: [] };
-}
-
 // Verifica que o handler lança erro amigável ao receber grupo inexistente
 test("sn_manage_access group_member add: erro se grupo não encontrado", async () => {
-  // Sobreescreve snGet via módulo real — apenas verifica que o guard de length funciona
-  // Este teste valida a lógica de guarda sem fazer chamadas HTTP reais.
-  // A condição `!group.result?.length` deve lançar antes de acessar result[0].
   const fakeGroupResult = { result: [] };
-  const fakeUserResult  = { result: [{ sys_id: "abc123" }] };
 
-  // Testa a guarda diretamente
   assert.throws(
     () => {
       if (!fakeGroupResult.result?.length) throw new Error("Grupo 'inexistente' não encontrado");

@@ -1,5 +1,5 @@
 /**
- * ServiceNow MCP v4.0 - Central Type Definitions
+ * ServiceNow MCP v5.0 — Central Type Definitions
  */
 
 export interface ServiceNowContext {
@@ -31,4 +31,11 @@ export interface ToolDefinition {
 
 export interface ToolHandler {
   (name: string, args: any): Promise<any>;
+}
+
+export interface MCPResource {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
 }
