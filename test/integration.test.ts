@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 // ── Handlers dos tools ────────────────────────
-import { handleScriptTool }       from "../src/tools/scripts.js";
+import { handleCrudTool }         from "../src/tools/crud.js";
 import { handleFlowTool }         from "../src/tools/flow.js";
 import { handleDeployTool }       from "../src/tools/deploy.js";
 import { handleSecurityTool }     from "../src/tools/security.js";
@@ -21,6 +21,7 @@ import { handleAttachmentTool }   from "../src/tools/attachments.js";
 import { handleKnowledgeTool }    from "../src/tools/knowledge.js";
 import { handleRelationshipTool } from "../src/tools/relationships.js";
 import { handleExtraTool }        from "../src/tools/extras.js";
+import { handleEnvTool }          from "../src/tools/envs.js";
 
 const ENV = process.env.SN_TEST_ENV || "DEV";
 console.log(`\n🔌 Rodando integração contra ambiente: ${ENV}\n`);
@@ -39,7 +40,7 @@ test("[conectividade] sn_health_check retorna status connected", async () => {
 });
 
 test("[conectividade] sn_list_envs lista ambientes configurados", async () => {
-  const r = await handleScriptTool("sn_list_envs", {});
+  const r = await handleEnvTool("sn_list_envs", {});
   assert.ok(r.count >= 1,    "Deve haver ao menos 1 ambiente configurado");
   assert.ok(Array.isArray(r.environments), "environments deve ser array");
   const envNames = r.environments.map(e => e.prefix);
@@ -51,7 +52,7 @@ test("[conectividade] sn_list_envs lista ambientes configurados", async () => {
 // ─────────────────────────────────────────────
 
 test("[crud] sn_query_records retorna lista de sys_user", async () => {
-  const r = await handleScriptTool("sn_query_records", {
+  const r = await handleCrudTool("sn_query_records", {
     env:    ENV,
     table:  "sys_user",
     query:  "active=true",
@@ -65,7 +66,7 @@ test("[crud] sn_query_records retorna lista de sys_user", async () => {
 });
 
 test("[crud] sn_query_records retorna lista de incidents", async () => {
-  const r = await handleScriptTool("sn_query_records", {
+  const r = await handleCrudTool("sn_query_records", {
     env:    ENV,
     table:  "incident",
     fields: "number,short_description,state",
@@ -77,7 +78,7 @@ test("[crud] sn_query_records retorna lista de incidents", async () => {
 
 test("[crud] sn_get_record busca usuário admin pelo sys_id", async () => {
   // Primeiro busca o sys_id do admin
-  const list = await handleScriptTool("sn_query_records", {
+  const list = await handleCrudTool("sn_query_records", {
     env:    ENV,
     table:  "sys_user",
     query:  "user_name=admin",
@@ -88,7 +89,7 @@ test("[crud] sn_get_record busca usuário admin pelo sys_id", async () => {
   const sys_id = list.result[0].sys_id;
 
   // Agora busca pelo sys_id
-  const r = await handleScriptTool("sn_get_record", {
+  const r = await handleCrudTool("sn_get_record", {
     env:    ENV,
     table:  "sys_user",
     sys_id,
@@ -98,7 +99,7 @@ test("[crud] sn_get_record busca usuário admin pelo sys_id", async () => {
 });
 
 test("[crud] sn_query_all pagina corretamente", async () => {
-  const r = await handleScriptTool("sn_query_all", {
+  const r = await handleCrudTool("sn_query_all", {
     env:       ENV,
     table:     "sys_user",
     query:     "active=true",
@@ -117,28 +118,28 @@ test("[crud] sn_query_all pagina corretamente", async () => {
 
 test("[validacao] sn_query_records rejeita tabela inválida", async () => {
   await assert.rejects(
-    () => handleScriptTool("sn_query_records", { env: ENV, table: "../../etc/passwd" }),
+    () => handleCrudTool("sn_query_records", { env: ENV, table: "../../etc/passwd" }),
     /inválido/i,
   );
 });
 
 test("[validacao] sn_get_record rejeita sys_id inválido", async () => {
   await assert.rejects(
-    () => handleScriptTool("sn_get_record", { env: ENV, table: "incident", sys_id: "nao-e-um-sysid" }),
+    () => handleCrudTool("sn_get_record", { env: ENV, table: "incident", sys_id: "nao-e-um-sysid" }),
     /sysid|inválido/i,
   );
 });
 
 test("[validacao] sn_create_record rejeita payload vazio", async () => {
   await assert.rejects(
-    () => handleScriptTool("sn_create_record", { env: ENV, table: "incident", data: {} }),
+    () => handleCrudTool("sn_create_record", { env: ENV, table: "incident", data: {} }),
     /vazio/i,
   );
 });
 
 test("[validacao] sn_create_record rejeita campos somente-leitura", async () => {
   await assert.rejects(
-    () => handleScriptTool("sn_create_record", { env: ENV, table: "incident", data: { sys_id: "abc" } }),
+    () => handleCrudTool("sn_create_record", { env: ENV, table: "incident", data: { sys_id: "abc" } }),
     /somente leitura/i,
   );
 });
@@ -291,7 +292,7 @@ test("[extras] sn_manage_email_template list retorna templates", async () => {
 
 test("[attachments] sn_list_attachments funciona para registro existente", async () => {
   // Busca primeiro um incident qualquer
-  const list = await handleScriptTool("sn_query_records", {
+  const list = await handleCrudTool("sn_query_records", {
     env:    ENV,
     table:  "incident",
     fields: "sys_id,number",

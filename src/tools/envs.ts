@@ -55,6 +55,7 @@ export async function handleEnvTool(name: string, _args: any) {
       return {
         count: envs.length,
         environments: envs,
+        cwd: process.cwd(),
         tip: envs.length === 0
           ? "Nenhum ambiente configurado. Copie .env.example para .env e preencha as variáveis."
           : "Use o campo 'prefix' como argumento 'env' nas ferramentas."

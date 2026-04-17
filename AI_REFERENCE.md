@@ -1,4 +1,4 @@
-# Guia de Ferramentas — ServiceNow MCP Server (v4.2.0)
+# Guia de Ferramentas — ServiceNow MCP Server (v5.0.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
@@ -6,7 +6,10 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
 ## Convenções Gerais
 
-1. **Parâmetro `env`**: Opcional em todas as ferramentas. Use para rotear para instâncias específicas configuradas no `.env` com prefixo (ex: `env: "DEV"` usa `DEV_SN_INSTANCE`/`DEV_SN_USER`/`DEV_SN_PASSWORD`).
+1. **Parâmetro `env`**: Opcional em todas as ferramentas. Use para rotear para instâncias específicas configuradas no `.env` com prefixo.
+   - **Exemplo**: Se no `.env` houver `PDI_SN_INSTANCE`, use `env: "PDI"`.
+   - **Exemplo**: Se houver `DEV_SN_INSTANCE`, use `env: "DEV"`.
+   - Se omitido, usa as variáveis padrão (`SN_INSTANCE`, etc.).
 2. **Knowledge First**: Sempre verifique os MCP Resources (`knowledge://category/table`) ou a pasta `knowledge/` antes de assumir nomes de campos. Se a tabela estiver documentada, use-a como fonte da verdade.
 3. **Validação automática**: Os campos `table`, `sys_id` e `limit` são validados em todas as operações CRUD. Erros de validação são imediatos — corrija o valor antes de tentar novamente.
 4. **Cache automático**: Todas as chamadas GET são cacheadas por 60 segundos por ambiente. Operações de escrita (POST, PATCH, DELETE) invalidam o cache automaticamente.
@@ -42,7 +45,9 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 - `sn_create_record` — criação genérica
 - `sn_update_record` — atualização por `sys_id`
 - `sn_bulk_update` — atualização em massa por encoded query
-- `sn_delete_record` — remoção por `sys_id`
+- `sn_clone_record` — duplicação de registro
+- `sn_diff_records` — comparação entre ambientes
+- `sn_search_global` — busca textual global
 - `sn_list_envs` — lista ambientes configurados
 
 ### Metadados & Código

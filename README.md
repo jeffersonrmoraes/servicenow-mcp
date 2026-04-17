@@ -52,31 +52,26 @@ npm install
 O servidor carrega automaticamente as variáveis do arquivo `.env` na raiz.
 
 ```env
-# Instância padrão
-SN_INSTANCE=dev12345
-SN_USER=admin
-SN_PASSWORD=sua_senha
+# Exemplo 1: Ambiente PDI
+PDI_SN_INSTANCE=dev12345
+PDI_SN_USER=admin
+PDI_SN_PASSWORD=sua_senha
 
-# Opcional: múltiplos ambientes com prefixo
+# Exemplo 2: Ambiente DEV
 DEV_SN_INSTANCE=dev99999
 DEV_SN_USER=admin
 DEV_SN_PASSWORD=outra_senha
 
-PROD_SN_INSTANCE=prod00001
-PROD_SN_USER=admin
-PROD_SN_PASSWORD=senha_prod
-
-# Opcional: ajustes de performance
-SN_CACHE_TTL_MS=60000
-SN_CACHE_MAX_ENTRIES=500
-SN_REQUEST_TIMEOUT_MS=30000
-SN_MAX_RETRIES=3
-SN_LOG_LEVEL=info
+# Instância padrão (sem prefixo)
+SN_INSTANCE=dev88888
+SN_USER=admin
+SN_PASSWORD=senha_padrao
 ```
 
-Use o parâmetro `env` nas ferramentas para rotear para ambientes específicos:
-- `env: "DEV"` → usa `DEV_SN_INSTANCE`, `DEV_SN_USER`, `DEV_SN_PASSWORD`
-- `env: ""` ou omitido → usa `SN_INSTANCE`, `SN_USER`, `SN_PASSWORD`
+Use o parâmetro `env` nas ferramentas para rotear entre ambientes:
+- `env: "PDI"` → usa `PDI_SN_INSTANCE`, `PDI_SN_USER`, etc.
+- `env: "DEV"` → usa `DEV_SN_INSTANCE`, `DEV_SN_USER`, etc.
+- `env: ""` (ou omitido) → usa as variáveis sem prefixo (`SN_INSTANCE`, etc.)
 
 ---
 
@@ -84,19 +79,20 @@ Use o parâmetro `env` nas ferramentas para rotear para ambientes específicos:
 
 ### Claude Desktop
 
-Abra seu `claude_desktop_config.json` e adicione:
+Abra seu `claude_desktop_config.json` e adicione a configuração exata baseada no seu diretório:
 
 ```json
 {
   "mcpServers": {
-    "servicenow": {
+    "servicenow-mcp": {
       "command": "npx",
-      "args": ["-y", "tsx", "/caminho/absoluto/para/servicenow-mcp/src/index.ts"],
-      "env": {
-        "SN_INSTANCE": "dev12345",
-        "SN_USER": "admin",
-        "SN_PASSWORD": "sua_senha"
-      }
+      "args": [
+        "-y",
+        "tsx",
+        "c:/servicenow-mcp/servicenow-mcp/src/index.ts"
+      ],
+      "workingDirectory": "c:/servicenow-mcp/servicenow-mcp",
+      "disabled": false
     }
   }
 }
@@ -139,7 +135,11 @@ Em `.vscode/mcp.json`:
 
 ### Antigravity (Google Agentspace)
 
-Configure o servidor como `stdio` apontando para o `src/index.ts` com `npx tsx`.
+Configure o servidor como `stdio` apontando para o arquivo principal.
+**Configuração recomendada:**
+- **Command**: `npx`
+- **Args**: `["-y", "tsx", "c:/servicenow-mcp/servicenow-mcp/src/index.ts"]`
+- **Working Directory**: `c:/servicenow-mcp/servicenow-mcp`
 
 ---
 

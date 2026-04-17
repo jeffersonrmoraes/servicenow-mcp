@@ -56,8 +56,8 @@ servicenow-mcp/
 │   ├── ratelimit.test.ts      ← Testes do rate limiter
 │   ├── security-guards.test.ts ← Testes de segurança
 │   ├── validate.test.ts       ← Testes de validação
-│   ├── client.test.js         ← Testes do HTTP client (legacy)
-│   └── integration.test.js   ← Testes de integração (legacy)
+│   ├── client.test.ts         ← Testes do HTTP client
+│   └── integration.test.ts    ← Testes de integração (Live)
 ├── AI_REFERENCE.md            ← Guia de uso para IAs consumidoras
 ├── GEMINI.md                  ← Este arquivo (contexto para desenvolvedores)
 ├── README.md                  ← Documentação pública
@@ -174,10 +174,18 @@ O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_inciden
 2. **Use `fs/promises`** para I/O de arquivos. Use `existsSync` apenas para checks de existência rápidos.
 3. **Versão**: Atualize `VERSION` em `src/index.ts` E `"version"` em `package.json`.
 4. **Testes**: TypeScript em `test/*.test.ts`. Rode `npm test` antes de commitar.
-5. **Type-check**: Rode `npm run type-check` para validar TypeScript.
-6. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono).
-7. **Knowledge First**: Sempre verifique `knowledge/` antes de assumir campos de uma tabela.
-8. **No Delete**: Nunca adicione operações DELETE. Política de segurança.
+5. **Parâmetro `env`**: Opcional em todas as ferramentas. Use para rotear para instâncias específicas configuradas no `.env` com prefixo.
+   - **Exemplo**: Se no `.env` houver `PDI_SN_INSTANCE`, use `env: "PDI"`.
+   - **Exemplo**: Se houver `DEV_SN_INSTANCE`, use `env: "DEV"`.
+   - Se omitido, usa as variáveis padrão (`SN_INSTANCE`, etc.).
+6. **Knowledge First**: Sempre verifique os MCP Resources (`knowledge://category/table`) ou a pasta `knowledge/` antes de assumir nomes de campos. Se a tabela estiver documentada, use-a como fonte da verdade.
+7. **Validação automática**: Os campos `table`, `sys_id` e `limit` são validados em todas as operações CRUD. Erros de validação são imediatos — corrija o valor antes de tentar novamente.
+8. **Cache automático**: Todas as chamadas GET são cacheadas por 60 segundos por ambiente. Operações de escrita (POST, PATCH, DELETE) invalidam o cache automaticamente.
+9. **Rate Limit com Backoff**: O servidor limita a 10 chamadas/segundo. Se exceder, aguarda automaticamente (até 5s) — não implemente retry manual.
+10. **MCP Resources**: Use os Resources do protocolo (`knowledge://category/tableName`) para ler schemas de tabelas localmente sem gastar chamadas de API.
+11. **Descoberta de ambientes**: Use `sn_list_envs` para ver quais instâncias estão configuradas e quais prefixos usar.
+12. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono).
+13. **No Delete**: Nunca adicione operações DELETE. Política de segurança.
 
 ---
 
