@@ -1,115 +1,310 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP Dashboard | ServiceNow Dark Tech</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Dashboard | ServiceNow</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div>
-                <h1>ServiceNow <span>MCP</span></h1>
-                <p style="color:var(--tech-text-dim); font-size: 0.9rem;">Visual Command Center v3.8.0</p>
-            </div>
-            <div class="server-status">
-                🟢 SYSTEM_ONLINE-3.8.0 // KNOWLEDGE_FIRST
-            </div>
-        </header>
+  <div class="container">
 
-        <main class="dashboard-grid">
-            <!-- COLUNA ESQUERDA: GESTÃO DE AMBIENTES -->
-            <div class="section-card glass" id="ambientes">
-                <h2>
-                    Ambientes (Multi-tenant)
-                    <button class="btn-tech primary" id="add-env-btn" style="min-width: 140px;">[+] ADICIONAR INSTÂNCIA</button>
-                </h2>
-                <div id="instance-list">
-                    <!-- Cards de instâncias injetados via JS -->
-                    <p style="color:var(--tech-text-dim)">Localizando instâncias...</p>
-                </div>
-            </div>
+    <header>
+      <div>
+        <h1>ServiceNow <span>MCP</span></h1>
+        <p class="subtitle">Visual Command Center v6.0.0</p>
+      </div>
+      <div class="server-status" id="server-status">
+        ● DASHBOARD_ONLINE
+      </div>
+    </header>
 
-            <!-- COLUNA DIREITA: EDITOR DE CONFIG -->
-            <div class="section-card glass" id="editor">
-                <h2>
-                    Arquivo de Config (.env)
-                    <span id="toggle-visibility" class="edit-badge" style="position:static; font-size: 0.9rem; cursor: pointer;">[👁️ REVELAR SENHAS]</span>
-                </h2>
-                <textarea id="env-editor" class="tech-editor" spellcheck="false" placeholder="# Carregando dados..."></textarea>
-                <button class="btn-tech primary" id="save-env-btn" style="margin-top: 20px; width: 100%;">SINCRONIZAR CONFIGURAÇÕES</button>
-            </div>
-        </main>
+    <!-- TAB NAVIGATION -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="environments">
+        <span class="tab-icon">⬡</span> ENVIRONMENTS
+      </button>
+      <button class="tab-btn" data-tab="tools">
+        <span class="tab-icon">⚙</span> TOOLS
+        <span class="tab-badge" id="tab-badge-tools"></span>
+      </button>
+      <button class="tab-btn" data-tab="activity">
+        <span class="tab-icon">◉</span> ACTIVITY
+        <span class="sse-dot" id="sse-dot" title="SSE Status"></span>
+      </button>
+      <button class="tab-btn" data-tab="stats">
+        <span class="tab-icon">▣</span> STATS
+      </button>
+      <button class="tab-btn" data-tab="governance">
+        <span class="tab-icon">✦</span> GOVERNANCE
+      </button>
+    </nav>
 
-        <footer>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
-                REMOT_PORT: 3000 // STATUS: READY // DESIGN_VERSION: DARK_TECH_3.6.0
-            </div>
-            <p style="margin-top: 10px;">© 2026 ServiceNow MCP Platform — Crafted for High Precision</p>
-        </footer>
-    </div>
+    <!-- ═══════════════════════════════════════ -->
+    <!-- TAB: ENVIRONMENTS                        -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="tab-environments" class="tab-content active">
+      <div class="tab-layout-split">
 
-    <!-- MODAL DE INSTÂNCIA v3.4.0 -->
-    <div id="mcp-modal" class="modal-overlay">
-        <div class="modal-content glass">
-            <div class="modal-header">
-                <h2 id="modal-title" style="margin-bottom: 0;">GERENCIAR_INSTÂNCIA</h2>
-                <button class="close-btn" id="close-modal" style="color:var(--tech-text-dim)">×</button>
-            </div>
-
-            <!-- SELETOR DE MÉTODO -->
-            <div class="auth-method-selector" style="display: flex; gap: 10px; margin: 20px 0;">
-                <button type="button" class="btn-tech auth-tab active" data-method="basic" style="flex: 1;">BASIC_AUTH</button>
-                <button type="button" class="btn-tech auth-tab" data-method="oauth" style="flex: 1;">OAUTH_2.0</button>
-            </div>
-
-            <form id="instance-form">
-                <input type="hidden" id="auth-method" value="basic">
-                
-                <div class="input-group">
-                    <label>AMB_PREFIX (Ex: PDI, DEV)</label>
-                    <input type="text" id="inst-prefix" class="input-tech" placeholder="PDI" required>
-                </div>
-                <div class="input-group">
-                    <label>SYS_INSTANCE (PDI NAME)</label>
-                    <input type="text" id="inst-name" class="input-tech" placeholder="dev12345" required>
-                </div>
-
-                <!-- CAMPOS BASIC -->
-                <div id="section-basic">
-                    <div class="input-group">
-                        <label>ADMIN_USER</label>
-                        <input type="text" id="inst-user" class="input-tech" value="admin">
-                    </div>
-                    <div class="input-group">
-                        <label>PASS_KEY (TOKEN)</label>
-                        <input type="password" id="inst-password" class="input-tech">
-                    </div>
-                </div>
-
-                <!-- CAMPOS OAUTH -->
-                <div id="section-oauth" style="display: none;">
-                    <div class="input-group">
-                        <label>CLIENT_ID</label>
-                        <input type="text" id="inst-client-id" class="input-tech">
-                    </div>
-                    <div class="input-group">
-                        <label>CLIENT_SECRET</label>
-                        <input type="password" id="inst-client-secret" class="input-tech">
-                    </div>
-                    <button type="button" id="authorize-btn" class="btn-tech" style="width: 100%; margin-top: 15px; border-color: #FFD700; color: #FFD700;">[🔓] AUTHORIZE_VIA_BROWSER</button>
-                    <div id="oauth-status" style="font-size: 0.7rem; color: var(--tech-text-dim); margin-top: 5px; text-align: center;">Aguardando autorização...</div>
-                </div>
-
-                <div class="modal-actions" style="margin-top: 30px;">
-                    <button type="submit" class="btn-tech primary" style="flex: 2;">SAVE_CHANGES</button>
-                    <button type="button" class="btn-tech danger" id="delete-inst-btn" style="flex: 1;">REMOVE</button>
-                </div>
-            </form>
+        <!-- Instance list -->
+        <div class="section-card glass">
+          <h2>
+            Instâncias Configuradas
+            <button class="btn-tech primary small" id="add-env-btn">[+] ADICIONAR</button>
+          </h2>
+          <div id="instance-list">
+            <p class="dim">Verificando instâncias...</p>
+          </div>
         </div>
+
+        <!-- Raw .env editor -->
+        <div class="section-card glass">
+          <h2>
+            Config (.env)
+            <span id="toggle-visibility" class="link-btn">[👁 REVELAR SENHAS]</span>
+          </h2>
+          <textarea id="env-editor" class="tech-editor" spellcheck="false" placeholder="# Carregando..."></textarea>
+          <button class="btn-tech primary" id="save-env-btn" style="margin-top:16px;width:100%;">SINCRONIZAR</button>
+        </div>
+
+      </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- ═══════════════════════════════════════ -->
+    <!-- TAB: TOOLS EXPLORER                      -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="tab-tools" class="tab-content">
+      <div class="section-card glass">
+        <div class="tools-header">
+          <input type="search" id="tools-search" class="input-tech" placeholder="Buscar por nome ou descrição..." />
+          <div id="module-filters" class="module-filters"></div>
+        </div>
+        <div id="tools-count" class="dim" style="margin-bottom:16px;font-size:0.8rem;"></div>
+        <div id="tools-grid" class="tools-grid"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- TAB: LIVE ACTIVITY                       -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="tab-activity" class="tab-content">
+      <div class="section-card glass">
+        <div class="activity-header">
+          <h2 style="margin-bottom:0;">Live Activity Feed</h2>
+          <div class="activity-controls">
+            <label class="toggle-label">
+              <input type="checkbox" id="auto-scroll" checked> AUTO-SCROLL
+            </label>
+            <select id="activity-filter" class="input-tech small">
+              <option value="">TODOS OS TOOLS</option>
+            </select>
+            <button class="btn-tech danger small" id="clear-activity">CLEAR</button>
+          </div>
+        </div>
+        <div id="sse-status-bar" class="sse-status-bar disconnected">
+          <span class="sse-indicator"></span>
+          <span id="sse-status-text">Conectando...</span>
+          <span id="activity-count" style="margin-left:auto;"></span>
+        </div>
+        <div id="activity-feed" class="activity-feed">
+          <p class="dim" id="activity-empty">Aguardando chamadas de ferramentas...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- TAB: STATS                               -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="tab-stats" class="tab-content">
+      <div class="stats-grid">
+
+        <!-- Server Block -->
+        <div class="stats-block glass">
+          <div class="stats-block-header">
+            <span class="stats-icon">▣</span> SERVER
+          </div>
+          <div id="stats-server" class="stats-rows">
+            <div class="stats-row"><span>Versão MCP</span><span class="val">—</span></div>
+            <div class="stats-row"><span>Ferramentas</span><span class="val">—</span></div>
+            <div class="stats-row"><span>Uptime</span><span class="val">—</span></div>
+            <div class="stats-row"><span>Node.js</span><span class="val">—</span></div>
+          </div>
+        </div>
+
+        <!-- Cache Block -->
+        <div class="stats-block glass">
+          <div class="stats-block-header">
+            <span class="stats-icon">◈</span> CACHE
+          </div>
+          <div id="stats-cache" class="stats-rows">
+            <div class="stats-row"><span>Entradas</span><span class="val">—</span></div>
+            <div class="stats-row"><span>Máximo</span><span class="val">—</span></div>
+            <div class="stats-row"><span>TTL</span><span class="val">—</span></div>
+            <div class="stats-row"><span>Persistência</span><span class="val">—</span></div>
+            <div class="stats-row"><span>Arquivo</span><span class="val mono small">—</span></div>
+          </div>
+        </div>
+
+        <!-- Knowledge Block -->
+        <div class="stats-block glass">
+          <div class="stats-block-header">
+            <span class="stats-icon">◉</span> KNOWLEDGE BASE
+          </div>
+          <div id="stats-knowledge" class="stats-rows">
+            <div class="stats-row"><span>Total Tabelas</span><span class="val">—</span></div>
+            <div class="stats-row"><span>CORE</span><span class="val">—</span></div>
+            <div class="stats-row"><span>CUSTOM</span><span class="val">—</span></div>
+            <div class="stats-row"><span>SYSTEM</span><span class="val">—</span></div>
+          </div>
+        </div>
+
+        <!-- Activity Block -->
+        <div class="stats-block glass">
+          <div class="stats-block-header">
+            <span class="stats-icon">⬡</span> ACTIVITY LOG
+          </div>
+          <div id="stats-activity" class="stats-rows">
+            <div class="stats-row"><span>Arquivo</span><span class="val mono small">—</span></div>
+            <div class="stats-row"><span>Chamadas (sessão)</span><span class="val" id="stat-session-count">0</span></div>
+            <div class="stats-row"><span>Erros (sessão)</span><span class="val" id="stat-session-errors">0</span></div>
+            <div class="stats-row"><span>Latência média</span><span class="val" id="stat-avg-latency">—</span></div>
+          </div>
+        </div>
+
+      </div>
+      <div style="text-align:right;margin-top:12px;">
+        <span class="dim" id="stats-updated" style="font-size:0.75rem;"></span>
+        <button class="btn-tech small" id="refresh-stats" style="margin-left:12px;">↻ REFRESH</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- TAB: GOVERNANCE                          -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="tab-governance" class="tab-content">
+      <div class="tab-layout-split">
+
+        <!-- Linter launcher -->
+        <div class="section-card glass">
+          <h2>Update Set Linter</h2>
+          <div class="input-group">
+            <label>AMBIENTE</label>
+            <select id="gov-env" class="input-tech"></select>
+          </div>
+          <div class="input-group" style="margin-top:14px;">
+            <label>UPDATE SET</label>
+            <select id="gov-update-set" class="input-tech">
+              <option value="">Selecione o ambiente primeiro...</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin-top:14px;">
+            <label>CHECKS A EXECUTAR</label>
+            <div class="checks-grid" id="checks-grid">
+              <label class="check-label"><input type="checkbox" value="try_catch" checked> try/catch</label>
+              <label class="check-label"><input type="checkbox" value="comments" checked> Comentários</label>
+              <label class="check-label"><input type="checkbox" value="hardcoded_sysids" checked> Sys IDs hardcoded</label>
+              <label class="check-label"><input type="checkbox" value="missing_deps" checked> Dependências</label>
+              <label class="check-label"><input type="checkbox" value="duplicate_methods" checked> Métodos duplicados</label>
+              <label class="check-label"><input type="checkbox" value="gr_in_loop" checked> GlideRecord em loop</label>
+              <label class="check-label"><input type="checkbox" value="current_update" checked> current.update()</label>
+              <label class="check-label"><input type="checkbox" value="eval_usage" checked> eval()</label>
+              <label class="check-label"><input type="checkbox" value="client_server_api" checked> API server em Client</label>
+              <label class="check-label"><input type="checkbox" value="no_limit_query" checked> Query sem setLimit</label>
+              <label class="check-label"><input type="checkbox" value="rest_no_timeout" checked> REST sem timeout</label>
+              <label class="check-label"><input type="checkbox" value="encoded_query_concat" checked> Query injection</label>
+            </div>
+          </div>
+          <button class="btn-tech primary" id="run-lint-btn" style="margin-top:20px;width:100%;">▶ EXECUTAR LINTER</button>
+        </div>
+
+        <!-- Linter results -->
+        <div class="section-card glass">
+          <h2>Resultado da Análise</h2>
+          <div id="lint-result">
+            <p class="dim">Selecione um Update Set e execute o linter para ver os resultados.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <footer>
+      <div class="mono" style="font-size:0.7rem;">DASHBOARD_PORT: 3000 // MCP_VERSION: 6.0.0 // DESIGN: DARK_TECH_2.0</div>
+      <p style="margin-top:8px;">© 2026 ServiceNow MCP Platform</p>
+    </footer>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- MODAL: Instance Manager                  -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="mcp-modal" class="modal-overlay">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h2 id="modal-title" style="margin-bottom:0;">GERENCIAR INSTÂNCIA</h2>
+        <button class="close-btn" id="close-modal">×</button>
+      </div>
+
+      <div class="auth-method-selector">
+        <button type="button" class="btn-tech auth-tab active" data-method="basic">BASIC_AUTH</button>
+        <button type="button" class="btn-tech auth-tab" data-method="oauth">OAUTH_2.0</button>
+      </div>
+
+      <form id="instance-form">
+        <input type="hidden" id="auth-method" value="basic">
+        <div class="input-group">
+          <label>AMB_PREFIX (Ex: PDI, DEV)</label>
+          <input type="text" id="inst-prefix" class="input-tech" placeholder="PDI" required>
+        </div>
+        <div class="input-group">
+          <label>SYS_INSTANCE</label>
+          <input type="text" id="inst-name" class="input-tech" placeholder="dev12345" required>
+        </div>
+        <div id="section-basic">
+          <div class="input-group">
+            <label>ADMIN_USER</label>
+            <input type="text" id="inst-user" class="input-tech" value="admin">
+          </div>
+          <div class="input-group">
+            <label>PASS_KEY</label>
+            <input type="password" id="inst-password" class="input-tech">
+          </div>
+        </div>
+        <div id="section-oauth" style="display:none;">
+          <div class="input-group">
+            <label>CLIENT_ID</label>
+            <input type="text" id="inst-client-id" class="input-tech">
+          </div>
+          <div class="input-group">
+            <label>CLIENT_SECRET</label>
+            <input type="password" id="inst-client-secret" class="input-tech">
+          </div>
+          <button type="button" id="authorize-btn" class="btn-tech" style="width:100%;margin-top:12px;border-color:#FFD700;color:#FFD700;">
+            [🔓] AUTHORIZE VIA BROWSER
+          </button>
+          <div id="oauth-status" class="dim" style="font-size:0.7rem;margin-top:6px;text-align:center;">Aguardando...</div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-tech primary" style="flex:2;">SALVAR</button>
+          <button type="button" class="btn-tech danger" id="delete-inst-btn" style="flex:1;">REMOVER</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tool schema drawer -->
+  <div id="tool-drawer" class="drawer-overlay">
+    <div class="drawer-panel glass">
+      <div class="drawer-header">
+        <h3 id="drawer-title"></h3>
+        <button class="close-btn" id="close-drawer">×</button>
+      </div>
+      <p id="drawer-desc" class="dim" style="margin-bottom:16px;"></p>
+      <div class="drawer-meta" id="drawer-meta"></div>
+      <pre id="drawer-schema" class="schema-pre"></pre>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>

@@ -1,41 +1,105 @@
+import fs   from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
+
 // ─────────────────────────────────────────────
-//  LRU Cache with TTL — v5.0
-//  Max entries configurable via SN_CACHE_MAX_ENTRIES (default: 500)
+//  LRU Cache with TTL + Optional Persistent Layer — v6.0
+//
+//  Persistent layer: enabled via SN_CACHE_PERSIST=true
+//  Storage path:     SN_CACHE_PERSIST_PATH (default: .sn-cache.json in cwd)
+//  Purpose:          Survive server restarts (common in Claude Desktop),
+//                    keeping table metadata warm across sessions.
 // ─────────────────────────────────────────────
 
 interface CacheEntry {
-  value: any;
+  value:   any;
   expires: number;
 }
 
 const cache = new Map<string, CacheEntry>();
 
-/**
- * TTL configurável via SN_CACHE_TTL_MS (padrão: 60 000 ms = 1 minuto).
- * Defina 0 para desabilitar o cache completamente.
- */
 const DEFAULT_TTL_MS = parseInt(process.env.SN_CACHE_TTL_MS || String(60 * 1000), 10);
+const MAX_ENTRIES    = parseInt(process.env.SN_CACHE_MAX_ENTRIES || "500", 10);
+const PERSIST        = process.env.SN_CACHE_PERSIST === "true";
+const PERSIST_PATH   = process.env.SN_CACHE_PERSIST_PATH
+  ? path.resolve(process.env.SN_CACHE_PERSIST_PATH)
+  : path.resolve(process.cwd(), ".sn-cache.json");
 
-/**
- * Limite máximo de entradas no cache para prevenir memory leaks em sessões longas.
- */
-const MAX_ENTRIES = parseInt(process.env.SN_CACHE_MAX_ENTRIES || "500", 10);
+// ─────────────────────────────────────────────
+//  Persistent Layer I/O
+// ─────────────────────────────────────────────
 
-/**
- * Evict: remove a entrada mais antiga quando o cache atinge o limite.
- * O Map do JS mantém ordem de inserção, então a primeira chave é a mais antiga.
- */
+let _persistDirty  = false;
+let _persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function persistFlush(): Promise<void> {
+  if (!PERSIST || !_persistDirty) return;
+  _persistDirty = false;
+
+  const now     = Date.now();
+  const payload: Record<string, CacheEntry> = {};
+  for (const [k, v] of cache) {
+    if (now < v.expires) payload[k] = v; // only persist non-expired
+  }
+
+  try {
+    await fs.writeFile(PERSIST_PATH, JSON.stringify(payload), "utf8");
+  } catch {
+    // Non-fatal: log would create circular dep with logger
+  }
+}
+
+function schedulePersist(): void {
+  if (!PERSIST) return;
+  _persistDirty = true;
+  if (_persistTimer) return;
+  // Debounce: flush after 2 seconds of inactivity
+  _persistTimer = setTimeout(async () => {
+    _persistTimer = null;
+    await persistFlush();
+  }, 2000);
+}
+
+export async function persistLoad(): Promise<void> {
+  if (!PERSIST || !existsSync(PERSIST_PATH)) return;
+  try {
+    const raw  = await fs.readFile(PERSIST_PATH, "utf8");
+    const data = JSON.parse(raw) as Record<string, CacheEntry>;
+    const now  = Date.now();
+    let loaded = 0;
+
+    for (const [k, v] of Object.entries(data)) {
+      if (now < v.expires) {
+        cache.set(k, v);
+        loaded++;
+      }
+    }
+
+    if (loaded > 0) {
+      // Non-circular: use process.stdout to avoid importing logger
+      process.stderr.write(`[cache] Persistent layer loaded: ${loaded} entries from ${PERSIST_PATH}\n`);
+    }
+  } catch {
+    // Corrupted or missing — start fresh
+  }
+}
+
+// ─────────────────────────────────────────────
+//  LRU helpers
+// ─────────────────────────────────────────────
+
 function evictOldest(): void {
   if (cache.size <= 0) return;
   const oldestKey = cache.keys().next().value;
   if (oldestKey !== undefined) cache.delete(oldestKey);
 }
 
-/**
- * Recupera um valor do cache se não estiver expirado.
- */
+// ─────────────────────────────────────────────
+//  Public API
+// ─────────────────────────────────────────────
+
 export function cacheGet(key: string): any | undefined {
-  if (DEFAULT_TTL_MS === 0) return undefined; // cache desabilitado
+  if (DEFAULT_TTL_MS === 0) return undefined;
   const entry = cache.get(key);
   if (!entry) return undefined;
 
@@ -44,22 +108,17 @@ export function cacheGet(key: string): any | undefined {
     return undefined;
   }
 
-  // Move para o final (refresh de LRU position)
+  // LRU: move to end
   cache.delete(key);
   cache.set(key, entry);
 
   return entry.value;
 }
 
-/**
- * Armazena um valor no cache com TTL e eviction LRU.
- */
 export function cacheSet(key: string, value: any, ttlMs: number = DEFAULT_TTL_MS) {
-  if (ttlMs === 0) return; // cache desabilitado
+  if (ttlMs === 0) return;
 
-  // Evict entradas expiradas primeiro (housekeeping leve)
   if (cache.size >= MAX_ENTRIES) {
-    // Limpa expirados antes de forçar eviction
     const now = Date.now();
     for (const [k, v] of cache) {
       if (now > v.expires) cache.delete(k);
@@ -67,38 +126,28 @@ export function cacheSet(key: string, value: any, ttlMs: number = DEFAULT_TTL_MS
     }
   }
 
-  // Se ainda está cheio, remove o mais antigo (LRU)
   while (cache.size >= MAX_ENTRIES) {
     evictOldest();
   }
 
-  cache.set(key, {
-    value,
-    expires: Date.now() + ttlMs,
-  });
+  cache.set(key, { value, expires: Date.now() + ttlMs });
+  schedulePersist();
 }
 
-/**
- * Invalida chaves que casam com um padrão (parcial).
- */
 export function cacheInvalidate(pattern: string) {
   for (const key of cache.keys()) {
     if (key.includes(pattern)) {
       cache.delete(key);
     }
   }
+  schedulePersist();
 }
 
-/**
- * Limpa todo o cache (reset total).
- */
 export function cacheClear() {
   cache.clear();
+  schedulePersist();
 }
 
-/**
- * Retorna métricas do cache para diagnóstico.
- */
 export function cacheStats() {
   const now = Date.now();
   let expired = 0;
@@ -106,9 +155,20 @@ export function cacheStats() {
     if (now > entry.expires) expired++;
   }
   return {
-    size: cache.size,
-    max: MAX_ENTRIES,
-    ttl_ms: DEFAULT_TTL_MS,
-    expired_pending: expired,
+    size:             cache.size,
+    max:              MAX_ENTRIES,
+    ttl_ms:           DEFAULT_TTL_MS,
+    expired_pending:  expired,
+    persist_enabled:  PERSIST,
+    persist_path:     PERSIST ? PERSIST_PATH : null,
   };
+}
+
+/**
+ * Persists a specific key with a long TTL — intended for stable metadata
+ * (table schemas, sys_dictionary entries) that should survive restarts.
+ * TTL default: 24h.
+ */
+export function cachePersistMeta(key: string, value: any, ttlMs = 24 * 60 * 60 * 1000) {
+  cacheSet(key, value, ttlMs);
 }

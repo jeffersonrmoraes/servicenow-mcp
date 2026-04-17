@@ -1,4 +1,4 @@
-# Guia de Ferramentas — ServiceNow MCP Server (v5.0.0)
+# Guia de Ferramentas — ServiceNow MCP Server (v6.0.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
@@ -16,6 +16,7 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 5. **Rate Limit com Backoff**: O servidor limita a 10 chamadas/segundo. Se exceder, aguarda automaticamente (até 5s) — não implemente retry manual.
 6. **MCP Resources**: Use os Resources do protocolo (`knowledge://category/tableName`) para ler schemas de tabelas localmente sem gastar chamadas de API.
 7. **Descoberta de ambientes**: Use `sn_list_envs` para ver quais instâncias estão configuradas antes de começar.
+8. **Activity Log**: Toda chamada de ferramenta é registrada automaticamente em `.sn-activity.jsonl`. O Dashboard lê esse arquivo via SSE em tempo real.
 
 ---
 
@@ -26,16 +27,18 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 3. **Datasets grandes**: Use `sn_query_all` (com cursor `next_offset`) em vez de `sn_query_records` com offset manual para datasets acima de 1000 registros.
 4. **Exports**: Use `sn_export_records` para extrair dados em JSON ou CSV para migração ou análise.
 5. **Deploy seguro**: Crie um Update Set com `sn_create_update_set`, defina-o como atual com `sn_set_current_update_set`, faça as alterações, e complete com `sn_complete_update_set`.
-6. **Análise de impacto**: Antes de alterar o schema de uma tabela, use `sn_analyze_impact` para ver quais outras tabelas serão afetadas.
+6. **Análise de impacto**: Antes de alterar o schema de uma tabela, use `sn_analyze_impact` com `deep_discovery: true` para ver todas as referências em scripts.
+7. **Qualidade de código**: Antes de promover um Update Set, execute `sn_check_update_set` para detectar problemas de boas práticas — N+1 queries, eval(), current.update(), etc.
+8. **Logs de sistema**: Use `sn_stream_syslog` para investigar erros em produção (requer role `admin`). Suporta filtros por nível (`debug`/`info`/`warn`/`error`) e intervalos relativos (`-1h`, `-30m`).
 
 ---
 
 ## Blocos de Ferramentas por Domínio
 
 ### IA & Contexto
-- `sn_sync_knowledge_base` — sincroniza metadados (incremental por padrão)
+- `sn_sync_knowledge_base` — sincroniza metadados (incremental por padrão, default 50 tabelas)
 - `sn_get_dependencies` — tabelas referenciadas por uma tabela (outbound)
-- `sn_analyze_impact` — tabelas que referenciam uma tabela (inbound)
+- `sn_analyze_impact` — tabelas que referenciam uma tabela (inbound). `deep_discovery: true` escaneia scripts em 6 tabelas adicionais
 - `sn_generate_ai_context` — contexto Markdown otimizado a partir de um registro
 
 ### Core CRUD
@@ -84,6 +87,11 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 - `sn_set_current_update_set` — define o Update Set ativo
 - `sn_list_update_sets` — lista Update Sets (filtrável por estado)
 - `sn_complete_update_set` — marca como completo
+- `sn_check_update_set` — linter com 12 checks de boas práticas
+
+### Logs & Observabilidade
+- `sn_stream_syslog` — lê entradas do syslog por nível, intervalo e nó. **Requer role `admin`**
+- `sn_get_node_log` — logs de nó específico do cluster. **Requer role `admin`**
 
 ### Attachments
 - `sn_upload_attachment` — upload Base64
@@ -103,12 +111,34 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
 ---
 
+## Linter de Update Sets — Checks Disponíveis
+
+Use `sn_check_update_set` com o parâmetro `checks` para selecionar quais análises executar. Sem o parâmetro, todos os 12 checks rodam por padrão.
+
+| Check | Severidade | Detecta |
+|---|---|---|
+| `try_catch` | warning | Scripts com GlideRecord sem bloco try/catch |
+| `comments` | info | Scripts longos (>5 linhas) sem comentários |
+| `hardcoded_sysids` | error | Strings de 32 chars hexadecimais hardcoded |
+| `missing_deps` | warning/error | Script Includes ausentes ou inativas |
+| `duplicate_methods` | error | Funções com o mesmo nome no mesmo script |
+| `gr_in_loop` | error | `new GlideRecord` dentro de while/for — N+1 queries |
+| `current_update` | error | `current.update()` em Business Rules — loop infinito |
+| `eval_usage` | error | `eval()` — injeção de código e ofuscação |
+| `client_server_api` | error | `GlideRecord`, `gs.*`, `GlideQuery` em Client Scripts |
+| `no_limit_query` | warning | `GlideRecord.query()` sem `setLimit()` — full-table scan |
+| `rest_no_timeout` | warning | `RESTMessageV2` sem `setHttpTimeout()` — thread starvation |
+| `encoded_query_concat` | warning | Concatenação em `addEncodedQuery()` — query injection |
+
+---
+
 ## Comportamento de Segurança
 
 - **Validação de inputs**: `tableName` deve seguir `[a-zA-Z0-9_]+`; `sys_id` deve ter 32 chars hexadecimais; `limit` deve ser inteiro entre 1 e 1000.
 - **Startup**: O servidor valida `SN_INSTANCE` ao iniciar e emite aviso no stderr se não configurado.
 - **Erros amigáveis**: Lookups de grupo, usuário e role retornam mensagem clara se o recurso não for encontrado (sem crash).
 - **Mascaramento**: `sn_set_sys_property` com `private: true` armazena o valor mascarado na UI.
+- **Admin guard**: `sn_stream_syslog` e `sn_get_node_log` verificam a role `admin` na instância antes de qualquer chamada.
 
 ---
 
@@ -182,3 +212,12 @@ Após criar/alterar form layout via REST:
 GET /cache.do
 ```
 Aguarda redirect 302. Sem isso, o form renderiza o layout antigo.
+
+### 9. Anti-patterns detectados pelo linter (v6.0)
+
+- **GlideRecord em loop**: Nunca instancie `new GlideRecord` dentro de `while(gr.next())`. Pré-carregue os dados antes do loop.
+- **`current.update()` em Business Rules**: Causa loop infinito. Use `setWorkflow(false)` ou reestruture a lógica.
+- **`eval()`**: Evite completamente. Use `JSON.parse()` para dados dinâmicos.
+- **APIs server-only em Client Scripts**: `GlideRecord`, `gs.getProperty()`, `gs.log()` não existem no browser. Use `GlideAjax`.
+- **`GlideRecord.query()` sem `setLimit()`**: Pode retornar a tabela inteira. Sempre use `setLimit(n)`.
+- **`RESTMessageV2` sem timeout**: Chamadas externas bloqueiam threads. Sempre use `setHttpTimeout(ms)`.

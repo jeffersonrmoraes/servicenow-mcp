@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v5.0.0)
+# GEMINI.md — Contexto do Projeto para IA (v6.0.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,25 +7,30 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `5.0.0`
-- **Descrição**: Servidor MCP que expõe 46 ferramentas e 4 prompts para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
+- **Versão Atual**: `6.0.0`
+- **Descrição**: Servidor MCP que expõe 50 ferramentas e 4 prompts para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API) — 100% TypeScript com `tsx`.
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
 
 ---
 
-## Estrutura de Arquivos (v5.0.0)
+## Estrutura de Arquivos (v6.0.0)
 
 ```
 servicenow-mcp/
 ├── src/
-│   ├── index.ts               ← Orquestrador MCP Principal (roteamento O(1) via Map + Prompts)
+│   ├── index.ts               ← Orquestrador MCP Principal (roteamento O(1) via Map + Prompts + activity logging)
 │   ├── types.ts               ← Interfaces TypeScript compartilhadas (ToolDefinition, MCPResource, etc.)
 │   ├── dashboard/
-│   │   └── server.ts          ← API do Dashboard + OAuth Callback
+│   │   ├── server.ts          ← API do Dashboard (Express) — SSE, health, stats, governance, OAuth
+│   │   └── public/
+│   │       ├── index.html     ← SPA 5-abas (Environments, Tools, Activity, Stats, Governance)
+│   │       ├── app.js         ← Lógica do frontend (lazy tab init, SSE reconnect, live activity)
+│   │       └── style.css      ← Dark Tech theme (JetBrains Mono, ciano/preto)
 │   ├── lib/
 │   │   ├── client.ts          ← Cliente REST (retry + backoff, OAuth refresh memory-only)
-│   │   ├── cache.ts           ← LRU Cache com TTL + eviction + métricas
+│   │   ├── cache.ts           ← LRU Cache com TTL + eviction + persistência JSON opcional
+│   │   ├── activity.ts        ← Activity log JSONL (IPC MCP→Dashboard via byte-offset polling)
 │   │   ├── ratelimit.ts       ← Sliding window 10 req/s read, 5 req/s write, por ambiente
 │   │   ├── validate.ts        ← Validação de tableName, sys_id, limit, payload, query
 │   │   ├── helpers.ts         ← Utilitários compartilhados (upsert, findByField, encodeQueryParam)
@@ -43,25 +48,31 @@ servicenow-mcp/
 │       ├── attachments.ts     ← Attachment API (upload, list, download)
 │       ├── properties.ts      ← System Properties (get, set, list)
 │       ├── bundle.ts          ← Leitura atômica de Catalog Items
-│       ├── knowledge.ts       ← Harvester incremental (async I/O)
-│       ├── relationships.ts   ← Mapeamento de dependências (get_dependencies, analyze_impact)
-│       └── extras.ts          ← Utilitários (health_check, choice, export, email_template)
+│       ├── knowledge.ts       ← Harvester incremental (async I/O, default 50 tabelas)
+│       ├── relationships.ts   ← Mapeamento de dependências + Deep Discovery em 6 tabelas de scripts
+│       ├── extras.ts          ← Utilitários (health_check, choice, export, email_template)
+│       ├── logs.ts            ← Logs de sistema (sn_stream_syslog, sn_get_node_log) — admin-only
+│       └── governance.ts      ← Linter de Update Sets (sn_check_update_set, 12 checks)
 ├── knowledge/                 ← Metadados locais da instância (gerado pelo Harvester)
 │   ├── core/                  ← Tabelas nativas (incident, change, task...)
 │   ├── custom/                ← Tabelas u_, x_
 │   ├── system/                ← Tabelas sys_
 │   └── state.json             ← Estado do sincronismo incremental
 ├── test/
-│   ├── cache.test.ts          ← Testes do LRU cache (inclui eviction)
+│   ├── cache.test.ts          ← Testes do LRU cache (inclui eviction + persistência)
 │   ├── ratelimit.test.ts      ← Testes do rate limiter
 │   ├── security-guards.test.ts ← Testes de segurança
 │   ├── validate.test.ts       ← Testes de validação
 │   ├── client.test.ts         ← Testes do HTTP client
+│   ├── activity.test.ts       ← Testes do activity log (byte-offset, concurrent writes)
+│   ├── governance.test.ts     ← Testes do linter (cada check individualmente)
+│   ├── logs.test.ts           ← Testes das ferramentas de log
+│   ├── relationships.test.ts  ← Testes do deep discovery
 │   └── integration.test.ts    ← Testes de integração (Live)
 ├── AI_REFERENCE.md            ← Guia de uso para IAs consumidoras
 ├── GEMINI.md                  ← Este arquivo (contexto para desenvolvedores)
 ├── README.md                  ← Documentação pública
-├── package.json               ← v5.0.0 (scripts: start, build, dashboard, dev, test, type-check)
+├── package.json               ← v6.0.0 (scripts: start, build, dashboard, dev, test, type-check)
 └── tsconfig.json              ← Com declaration, sourceMap, declarationMap
 ```
 
@@ -74,9 +85,10 @@ servicenow-mcp/
 | Runtime | Node.js >= 18 (recomendado >= 20) |
 | Linguagem | TypeScript via `tsx` (dev) / `tsc` (build) |
 | Módulos | ESM (`"type": "module"`) — **nunca use `require()`** |
-| Dashboard | Express + Vanilla HTML/JS |
+| Dashboard | Express + Vanilla HTML/JS (sem framework) |
 | MCP Transport | Stdio |
-| Versão fonte única | `const VERSION = "5.0.0"` em `src/index.ts` e `"version"` em `package.json` |
+| IPC MCP→Dashboard | JSONL append-only (`.sn-activity.jsonl`) com byte-offset polling |
+| Versão fonte única | `const VERSION = "6.0.0"` em `src/index.ts` e `"version"` em `package.json` |
 
 ---
 
@@ -134,6 +146,27 @@ Após criar o módulo, registre-o em `src/index.ts` nos arrays `ALL_TOOLS` e `to
 
 ---
 
+## Activity Log (src/lib/activity.ts)
+
+O arquivo `.sn-activity.jsonl` é o canal IPC entre o processo MCP (stdio) e o Dashboard (HTTP).
+
+- **MCP**: chama `logActivity(entry)` com fire-and-forget (`logActivity(...).catch(() => {})`) — zero impacto na latência das ferramentas.
+- **Dashboard**: endpoint `/api/activity/stream` faz polling via SSE a cada 500ms usando `readActivityFrom(offsetBytes)` — lê apenas os bytes novos (equivalente a `tail -f`).
+- **Rotação**: verifica e trunca a cada 50 appends quando o arquivo ultrapassa 1000 linhas.
+- **Escrita serializada**: fila via Promise chain — sem corrupção em escritas concorrentes.
+
+---
+
+## Cache Persistente (src/lib/cache.ts)
+
+- `SN_CACHE_PERSIST=true` habilita persistência em JSON.
+- `SN_CACHE_PERSIST_PATH` define o caminho (default: `.sn-cache.json`).
+- `persistLoad()` deve ser chamado no startup do MCP antes de conectar.
+- Flush debounced: 2s de inatividade após a última escrita.
+- `cachePersistMeta(key, value, ttlMs)` para metadados de longa duração (ex: schemas de tabelas, TTL=24h).
+
+---
+
 ## Validação Obrigatória
 
 Novas ferramentas CRUD devem importar de `lib/validate.ts`:
@@ -144,12 +177,13 @@ import { validateTableName, validateSysId, validateLimit } from "../lib/validate
 
 ---
 
-## Segurança (v5.0)
+## Segurança (v6.0)
 
 1. **Delete completamente removido** — Nenhuma ferramenta executa operações DELETE.
 2. **Script sanitization** — Scripts passam por validação contra padrões destrutivos antes de envio.
 3. **OAuth memory-only** — Tokens renovados via refresh nunca são escritos em disco.
 4. **Input validation** — Todos os inputs são validados contra injection e tamanho.
+5. **Admin guard** — `sn_stream_syslog` e `sn_get_node_log` verificam role `admin` via `sys_user_has_role` antes de qualquer chamada de log.
 
 ---
 
@@ -162,9 +196,26 @@ O servidor expõe os arquivos de `knowledge/` como MCP Resources:
 
 ---
 
-## MCP Prompts (v5.0)
+## MCP Prompts (v6.0)
 
 O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_incident`, `analyze_table`, `onboarding_app`.
+
+---
+
+## Dashboard v2.0 — Endpoints da API
+
+| Endpoint | Método | Descrição |
+|---|---|---|
+| `GET /api/envs` | GET | Lista instâncias do `.env` |
+| `GET /api/health/:prefix` | GET | Health check paralelo (user + versão) |
+| `GET /api/tools` | GET | Lista todas as 50 ferramentas com módulo inferido |
+| `GET /api/stats` | GET | Métricas de servidor, cache, knowledge e activity |
+| `GET /api/activity` | GET | Histórico de activity log (últimas N entradas) |
+| `GET /api/activity/stream` | SSE | Stream live de novas entradas via byte-offset polling |
+| `GET /api/governance/update-sets` | GET | Lista Update Sets do ambiente |
+| `POST /api/governance/lint` | POST | Executa linter em um Update Set |
+| `GET /api/env` | GET | Lê o arquivo `.env` raw (senhas mascaradas) |
+| `POST /api/env` | POST | Salva o `.env` e aplica em `process.env` |
 
 ---
 
@@ -175,17 +226,15 @@ O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_inciden
 3. **Versão**: Atualize `VERSION` em `src/index.ts` E `"version"` em `package.json`.
 4. **Testes**: TypeScript em `test/*.test.ts`. Rode `npm test` antes de commitar.
 5. **Parâmetro `env`**: Opcional em todas as ferramentas. Use para rotear para instâncias específicas configuradas no `.env` com prefixo.
-   - **Exemplo**: Se no `.env` houver `PDI_SN_INSTANCE`, use `env: "PDI"`.
-   - **Exemplo**: Se houver `DEV_SN_INSTANCE`, use `env: "DEV"`.
-   - Se omitido, usa as variáveis padrão (`SN_INSTANCE`, etc.).
-6. **Knowledge First**: Sempre verifique os MCP Resources (`knowledge://category/table`) ou a pasta `knowledge/` antes de assumir nomes de campos. Se a tabela estiver documentada, use-a como fonte da verdade.
-7. **Validação automática**: Os campos `table`, `sys_id` e `limit` são validados em todas as operações CRUD. Erros de validação são imediatos — corrija o valor antes de tentar novamente.
-8. **Cache automático**: Todas as chamadas GET são cacheadas por 60 segundos por ambiente. Operações de escrita (POST, PATCH, DELETE) invalidam o cache automaticamente.
-9. **Rate Limit com Backoff**: O servidor limita a 10 chamadas/segundo. Se exceder, aguarda automaticamente (até 5s) — não implemente retry manual.
-10. **MCP Resources**: Use os Resources do protocolo (`knowledge://category/tableName`) para ler schemas de tabelas localmente sem gastar chamadas de API.
-11. **Descoberta de ambientes**: Use `sn_list_envs` para ver quais instâncias estão configuradas e quais prefixos usar.
-12. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono).
-13. **No Delete**: Nunca adicione operações DELETE. Política de segurança.
+6. **Knowledge First**: Sempre verifique os MCP Resources (`knowledge://category/table`) ou a pasta `knowledge/` antes de assumir nomes de campos.
+7. **Validação automática**: Os campos `table`, `sys_id` e `limit` são validados em todas as operações CRUD.
+8. **Cache automático**: Todas as chamadas GET são cacheadas por 60 segundos por ambiente.
+9. **Rate Limit com Backoff**: O servidor limita a 10 chamadas/segundo.
+10. **Activity Logging**: Fire-and-forget em `src/index.ts` — nunca espere o resultado do `logActivity`.
+11. **Dashboard dotenv**: `src/dashboard/server.ts` deve ter `import "dotenv/config"` como **primeira** importação — o Dashboard roda como processo separado.
+12. **No Delete**: Nunca adicione operações DELETE. Política de segurança.
+13. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono).
+14. **TDZ no Frontend**: Em `app.js`, chame funções que dependem de `const` declaradas abaixo apenas no final do `DOMContentLoaded` handler.
 
 ---
 
@@ -206,3 +255,5 @@ Aplicação completa implementada via REST API no PDI `dev343269.service-now.com
 9. `sys_ui_element` não tem campo `name` — filtrar sempre por `sys_ui_section=<sys_id>`
 10. `view_name` em `sys_ui_section` / `sys_ui_list` não é auto-populado via REST
 11. Após criar/alterar form layout via REST, limpar o cache com `GET /cache.do`
+12. `current.update()` em Business Rules causa loop infinito — usar `setWorkflow(false)` ou reestruturar
+13. `GlideRecord` não existe em Client Scripts — usar `GlideAjax` para chamadas server-side

@@ -45,7 +45,7 @@ export const knowledgeTools = [
         env:           { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
         table_pattern: { type: "string", description: "Nome exato ou pattern (ex: incident, u_*, *)", default: "*" },
         category:      { type: "string", enum: ["CORE", "CUSTOM", "SYSTEM"], default: "CUSTOM" },
-        limit:         { type: "number", description: "Máximo de tabelas a processar nesta rodada", default: 10 },
+        limit:         { type: "number", description: "Máximo de tabelas a processar nesta rodada", default: 50 },
         offset:        { type: "number", description: "Offset para paginação do crawl", default: 0 },
         force:         { type: "boolean", description: "Ignorar modo incremental e forçar sync completo", default: false },
         cleanup:       { type: "boolean", description: "Remove schemas locais de tabelas que não existem mais na instância (requer force=true)", default: false },
@@ -66,7 +66,7 @@ export async function handleKnowledgeTool(name: string, args: any) {
     case "sn_sync_knowledge_base": {
       const table_pattern = args.table_pattern || "*";
       const category = (args.category || "CUSTOM").toUpperCase();
-      const limit = args.limit || 10;
+      const limit = args.limit || 50;
       const offset = args.offset || 0;
       const force = !!args.force;
       const cleanup = !!args.cleanup;

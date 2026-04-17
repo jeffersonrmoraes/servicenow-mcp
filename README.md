@@ -1,13 +1,13 @@
 # ServiceNow MCP Server
 
-[![v5.0.0](https://img.shields.io/badge/version-5.0.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v6.0.0](https://img.shields.io/badge/version-6.0.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
 
-**v5.0.0** — 46 ferramentas ativas, 4 MCP Prompts, LRU cache com eviction, retry com backoff exponencial, arquitetura modular (15 módulos), TypeScript nativo com `tsx` + build step.
+**v6.0.0** — 50 ferramentas ativas, 4 MCP Prompts, Dashboard v2.0 com SSE live activity, linter de Update Sets com 12 checks de boas práticas, logs de sistema, cache persistente, activity log JSONL e deep discovery de impacto.
 
 ---
 
@@ -21,6 +21,7 @@ O **ServiceNow MCP Server** é um conector de alta performance que permite que a
   - [Claude Code (CLI)](#claude-code-cli)
   - [VS Code + GitHub Copilot](#vs-code--github-copilot)
   - [Antigravity (Google Agentspace)](#antigravity-google-agentspace)
+- [Dashboard v2.0](#dashboard-v20)
 - [Incremental Harvester](#incremental-harvester)
 - [Build & Testes](#build--testes)
 - [Ferramentas Disponíveis](#ferramentas-disponíveis)
@@ -66,6 +67,13 @@ DEV_SN_PASSWORD=outra_senha
 SN_INSTANCE=dev88888
 SN_USER=admin
 SN_PASSWORD=senha_padrao
+
+# Cache persistente (opcional)
+SN_CACHE_PERSIST=true
+SN_CACHE_PERSIST_PATH=.sn-cache.json
+
+# Activity log (opcional — sobrepõe o caminho padrão)
+SN_ACTIVITY_LOG_PATH=.sn-activity.jsonl
 ```
 
 Use o parâmetro `env` nas ferramentas para rotear entre ambientes:
@@ -143,9 +151,47 @@ Configure o servidor como `stdio` apontando para o arquivo principal.
 
 ---
 
+## Dashboard v2.0
+
+O Dashboard é um painel web local que roda em paralelo ao servidor MCP, sem interferir na latência das ferramentas.
+
+```bash
+npm run dashboard
+# Acesse: http://localhost:3000
+```
+
+### Funcionalidades
+
+| Aba | O que faz |
+|---|---|
+| **ENVIRONMENTS** | Gerencia instâncias (.env), health check paralelo por ambiente, editor de config raw, OAuth 2.0 flow |
+| **TOOLS** | Explorer com busca full-text e filtros por módulo, visualização de schema JSON |
+| **ACTIVITY** | Live feed via SSE (Server-Sent Events) com reconexão automática, filtro por tool, auto-scroll |
+| **STATS** | Métricas de servidor, cache, knowledge base e activity log com auto-refresh a cada 30s |
+| **GOVERNANCE** | Linter de Update Sets com 12 checks de boas práticas — selecionáveis individualmente |
+
+### Linter de Update Sets (12 checks)
+
+| Check | Severidade | Detecta |
+|---|---|---|
+| `try_catch` | warning | Scripts sem try/catch usando GlideRecord |
+| `comments` | info | Scripts longos sem comentários |
+| `hardcoded_sysids` | error | sys_ids de 32 chars hardcoded no código |
+| `missing_deps` | warning/error | Script Includes referenciadas mas ausentes/inativas |
+| `duplicate_methods` | error | Funções com o mesmo nome no mesmo script |
+| `gr_in_loop` | **error** | `new GlideRecord` dentro de while/for — N+1 queries |
+| `current_update` | **error** | `current.update()` em Business Rules — loop infinito |
+| `eval_usage` | **error** | `eval()` — injeção de código |
+| `client_server_api` | **error** | APIs server-only (`GlideRecord`, `gs.*`) em Client Scripts |
+| `no_limit_query` | warning | `GlideRecord.query()` sem `setLimit()` |
+| `rest_no_timeout` | warning | `RESTMessageV2` sem `setHttpTimeout()` |
+| `encoded_query_concat` | warning | Concatenação em `addEncodedQuery()` — query injection |
+
+---
+
 ## Incremental Harvester
 
-O Harvester sincroniza metadados da instância localmente em `knowledge/`. Na v4.0+, usa o campo `sys_updated_on` para baixar apenas o que mudou desde o último sincronismo (`knowledge/state.json`).
+O Harvester sincroniza metadados da instância localmente em `knowledge/`. Usa `sys_updated_on` para baixar apenas o que mudou desde o último sincronismo (`knowledge/state.json`). Default: 50 tabelas por execução.
 
 ```bash
 # Sincroniza apenas as mudanças desde a última execução
@@ -176,13 +222,16 @@ npm test
 
 # Modo desenvolvimento com hot-reload
 npm run dev
+
+# Dashboard (http://localhost:3000)
+npm run dashboard
 ```
 
 ---
 
 ## Ferramentas Disponíveis
 
-46 ferramentas organizadas em 15 módulos.
+50 ferramentas organizadas em 15 módulos.
 
 ### Core CRUD
 
@@ -211,9 +260,9 @@ npm run dev
 
 | Ferramenta | Descrição |
 |---|---|
-| `sn_sync_knowledge_base` | Sincroniza metadados localmente (incremental via `state.json`, com garbage collection) |
+| `sn_sync_knowledge_base` | Sincroniza metadados localmente (incremental via `state.json`, com garbage collection). Default: 50 tabelas |
 | `sn_get_dependencies` | Lista tabelas referenciadas por uma tabela (Outbound Relationships) |
-| `sn_analyze_impact` | Lista tabelas que referenciam uma tabela (Inbound Relationships) |
+| `sn_analyze_impact` | Lista tabelas que referenciam uma tabela (Inbound). Com `deep_discovery: true` escaneia scripts em 6 tabelas |
 | `sn_generate_ai_context` | Gera context window otimizado cruzando o registro com o schema local |
 
 ### Front-end & UX
@@ -260,6 +309,14 @@ npm run dev
 | `sn_set_current_update_set` | Define o Update Set atual |
 | `sn_list_update_sets` | Lista Update Sets disponíveis |
 | `sn_complete_update_set` | Marca um Update Set como completo |
+| `sn_check_update_set` | Linter de qualidade com 12 checks de boas práticas ServiceNow |
+
+### Logs & Observabilidade
+
+| Ferramenta | Descrição |
+|---|---|
+| `sn_stream_syslog` | Lê entradas do syslog da instância por nível, intervalo de tempo e nó. **Requer role admin** |
+| `sn_get_node_log` | Busca logs de um nó específico do cluster com filtros de severity |
 
 ### Attachments
 
@@ -290,7 +347,7 @@ npm run dev
 
 ## MCP Prompts
 
-O servidor v5.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflows comuns:
+O servidor v6.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflows comuns:
 
 | Prompt | Descrição |
 |---|---|
@@ -301,13 +358,14 @@ O servidor v5.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflo
 
 ---
 
-## Segurança (v5.0)
+## Segurança
 
 - **Operações de delete**: Completamente removidas por política de segurança. Use a interface do ServiceNow para operações destrutivas.
 - **Script sanitization**: `sn_execute_script` e `sn_upsert_metadata_script` bloqueiam operações perigosas (`deleteMultiple`, `Packages.java`, `Runtime`, etc.).
 - **OAuth tokens**: Armazenados apenas em memória durante a sessão. Nunca persistidos em `.env` via código.
 - **Retry**: Backoff exponencial automático para erros 429, 500, 502, 503, 504.
-- **LRU Cache**: Limite máximo de entradas para prevenir memory leaks.
+- **LRU Cache**: Limite máximo de entradas para prevenir memory leaks. Persistência opcional em JSON.
+- **Admin guard**: `sn_stream_syslog` e `sn_get_node_log` verificam a role `admin` via API antes de executar.
 
 ---
 
@@ -315,6 +373,7 @@ O servidor v5.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflo
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **v6.0.0** | 2026-04-17 | 50 ferramentas. Dashboard v2.0 (5 abas, SSE live activity, linter UI). Novos módulos: `sn_stream_syslog`, `sn_get_node_log` (admin-only), `sn_check_update_set` (12 checks). Cache persistente em JSON. Activity log JSONL (IPC MCP→Dashboard). Deep Discovery em `sn_analyze_impact`. Harvester default 50 tabelas. |
 | **v5.0.0** | 2026-04-17 | 46 ferramentas. Arquitetura split (15 módulos). LRU cache com eviction. Retry com exponential backoff. MCP Prompts (4). Novos tools: `sn_clone_record`, `sn_diff_records`, `sn_search_global`. Script sanitization. OAuth memory-only. Delete completamente removido. Testes migrados para TypeScript. Build step com `tsc`. |
 | **v4.2.0** | 2026-04-13 | 44 ferramentas ativas. Novos módulos: `sn_query_all`, `sn_list_envs`, `sn_manage_ui_page`, `sn_activate_flow`, `sn_list_flow_executions`, `sn_create_subflow`, `sn_create_flow_action`, `sn_set_current_update_set`, `sn_list_update_sets`, `sn_complete_update_set`, `sn_export_records`, `sn_manage_email_template`. |
 | **v4.0.0** | 2026-04-08 | Migração completa para TypeScript. Harvester incremental via `state.json`. `sn_get_dependencies` e `sn_analyze_impact`. ESM nativo com `tsx`. |

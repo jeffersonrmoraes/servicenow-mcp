@@ -17,6 +17,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { ToolDefinition, ToolHandler, MCPResource } from "./types.js";
+import { persistLoad } from "./lib/cache.js";
+import { logActivity } from "./lib/activity.js";
 
 // ─────────────────────────────────────────────
 //  Tool Modules (v5.0 — split architecture)
@@ -36,11 +38,13 @@ import { bundleTools,       handleBundleTool       } from "./tools/bundle.js";
 import { knowledgeTools,    handleKnowledgeTool    } from "./tools/knowledge.js";
 import { relationshipTools, handleRelationshipTool } from "./tools/relationships.js";
 import { extraTools,        handleExtraTool        } from "./tools/extras.js";
+import { logTools,          handleLogTool          } from "./tools/logs.js";
+import { governanceTools,   handleGovernanceTool   } from "./tools/governance.js";
 
 // ─────────────────────────────────────────────
 //  Versão — fonte única de verdade
 // ─────────────────────────────────────────────
-const VERSION = "5.0.0";
+const VERSION = "6.0.0";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas
@@ -61,6 +65,8 @@ const ALL_TOOLS: ToolDefinition[] = [
   ...knowledgeTools,
   ...relationshipTools,
   ...extraTools,
+  ...logTools,
+  ...governanceTools,
 ];
 
 // ─────────────────────────────────────────────
@@ -82,6 +88,8 @@ const toolModules: { tools: ToolDefinition[], handler: ToolHandler }[] = [
   { tools: knowledgeTools,    handler: handleKnowledgeTool    },
   { tools: relationshipTools, handler: handleRelationshipTool },
   { tools: extraTools,        handler: handleExtraTool        },
+  { tools: logTools,          handler: handleLogTool          },
+  { tools: governanceTools,   handler: handleGovernanceTool   },
 ];
 
 const HANDLER_MAP = new Map<string, ToolHandler>();
@@ -295,12 +303,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
+  const start = Date.now();
+  const env   = (args as any)?.env || "default";
+
   try {
     const result = await handler(name, args);
+    // Fire-and-forget: zero latency impact on MCP response
+    logActivity({ ts: new Date().toISOString(), tool: name, env, duration: Date.now() - start, status: "ok" }).catch(() => {});
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
   } catch (err: any) {
+    logActivity({ ts: new Date().toISOString(), tool: name, env, duration: Date.now() - start, status: "error", error: err.message || String(err) }).catch(() => {});
     return {
       content: [{ type: "text", text: `Erro: ${err.message || String(err)}` }],
       isError: true,
@@ -378,6 +392,7 @@ function validateEnv() {
 }
 
 validateEnv();
+await persistLoad();
 
 // ─────────────────────────────────────────────
 //  Start Transport
