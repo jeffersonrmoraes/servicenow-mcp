@@ -38,6 +38,9 @@
       <button class="tab-btn" data-tab="governance">
         <span class="tab-icon">✦</span> GOVERNANCE
       </button>
+      <button class="tab-btn" data-tab="graph">
+        <span class="tab-icon">⬡</span> GRAPH
+      </button>
     </nav>
 
     <!-- ═══════════════════════════════════════ -->
@@ -74,13 +77,21 @@
     <!-- TAB: TOOLS EXPLORER                      -->
     <!-- ═══════════════════════════════════════ -->
     <div id="tab-tools" class="tab-content">
-      <div class="section-card glass">
-        <div class="tools-header">
-          <input type="search" id="tools-search" class="input-tech" placeholder="Buscar por nome ou descrição..." />
-          <div id="module-filters" class="module-filters"></div>
+      <div class="tab-layout-split">
+        <div class="section-card glass" style="flex:2;">
+          <div class="tools-header">
+            <input type="search" id="tools-search" class="input-tech" placeholder="Buscar por nome ou descrição..." />
+            <div id="module-filters" class="module-filters"></div>
+          </div>
+          <div id="tools-count" class="dim" style="margin-bottom:16px;font-size:0.8rem;"></div>
+          <div id="tools-grid" class="tools-grid"></div>
         </div>
-        <div id="tools-count" class="dim" style="margin-bottom:16px;font-size:0.8rem;"></div>
-        <div id="tools-grid" class="tools-grid"></div>
+        <div class="section-card glass" style="flex:1;min-width:240px;">
+          <h2>Schema Search</h2>
+          <p class="dim" style="font-size:0.75rem;margin-bottom:10px;">Busca full-text no knowledge/ local</p>
+          <input type="search" id="schema-search-input" class="input-tech" placeholder="campo, tabela, tipo..." style="width:100%;box-sizing:border-box;" />
+          <div id="schema-search-results" style="margin-top:12px;max-height:500px;overflow-y:auto;"></div>
+        </div>
       </div>
     </div>
 
@@ -172,7 +183,17 @@
         </div>
 
       </div>
-      <div style="text-align:right;margin-top:12px;">
+      <!-- Latency Heatmap -->
+      <div class="stats-block glass" style="grid-column:1 / -1;">
+        <div class="stats-block-header">
+          <span class="stats-icon">◈</span> LATENCY HEATMAP — TOOLS
+        </div>
+        <div id="stats-heatmap" class="heatmap-rows">
+          <p class="dim">Carregando...</p>
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:12px;grid-column:1 / -1;">
         <span class="dim" id="stats-updated" style="font-size:0.75rem;"></span>
         <button class="btn-tech small" id="refresh-stats" style="margin-left:12px;">↻ REFRESH</button>
       </div>
@@ -212,6 +233,9 @@
               <label class="check-label"><input type="checkbox" value="no_limit_query" checked> Query sem setLimit</label>
               <label class="check-label"><input type="checkbox" value="rest_no_timeout" checked> REST sem timeout</label>
               <label class="check-label"><input type="checkbox" value="encoded_query_concat" checked> Query injection</label>
+              <label class="check-label"><input type="checkbox" value="hardcoded_urls" checked> URLs hardcoded</label>
+              <label class="check-label"><input type="checkbox" value="hardcoded_secrets" checked> Secrets hardcoded</label>
+              <label class="check-label"><input type="checkbox" value="missing_description" checked> Sem description</label>
             </div>
           </div>
           <button class="btn-tech primary" id="run-lint-btn" style="margin-top:20px;width:100%;">▶ EXECUTAR LINTER</button>
@@ -222,6 +246,43 @@
           <h2>Resultado da Análise</h2>
           <div id="lint-result">
             <p class="dim">Selecione um Update Set e execute o linter para ver os resultados.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- TAB: GRAPH EXPLORER                      -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="tab-graph" class="tab-content">
+      <div class="graph-layout">
+
+        <!-- Canvas area -->
+        <div class="section-card glass graph-main">
+          <div class="graph-toolbar">
+            <h2 style="margin-bottom:0;">Table Dependency Graph</h2>
+            <div id="graph-filter-bar" class="module-filters" style="margin-left:16px;"></div>
+            <span class="dim" style="margin-left:auto;font-size:0.75rem;">Scroll para zoom · Drag para mover · Click no nó para detalhes</span>
+          </div>
+          <p class="dim" id="graph-empty" style="text-align:center;padding:40px;">Carregando grafo...</p>
+          <div id="graph-canvas" class="graph-canvas" style="position:relative;"></div>
+        </div>
+
+        <!-- Sidebar -->
+        <div id="graph-sidebar" class="graph-sidebar glass">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 id="graph-sidebar-title" class="mono" style="margin:0;"></h3>
+            <button class="close-btn" id="close-graph-sidebar">×</button>
+          </div>
+          <div id="graph-sidebar-info"></div>
+          <div style="margin-top:20px;">
+            <div class="dim" style="font-size:0.7rem;margin-bottom:6px;">LEGENDA</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00e5ff;margin-right:6px;"></span><span class="dim">CORE</span></div>
+              <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#69f0ae;margin-right:6px;"></span><span class="dim">CUSTOM</span></div>
+              <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ffab40;margin-right:6px;"></span><span class="dim">SYSTEM</span></div>
+            </div>
           </div>
         </div>
 
@@ -305,6 +366,7 @@
     </div>
   </div>
 
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

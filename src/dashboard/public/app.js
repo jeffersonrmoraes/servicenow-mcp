@@ -1,7 +1,7 @@
 /* =============================================================
-   MCP Dashboard v2.0 — Vanilla ES6 SPA
+   MCP Dashboard v3.0 — Vanilla ES6 SPA
    Sections: TabManager | EnvironmentsTab | ToolsTab |
-             ActivityTab | StatsTab | GovernanceTab | Modal
+             ActivityTab | StatsTab | GovernanceTab | GraphTab | Modal
    ============================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
         case "activity":     ActivityTab.init();     break;
         case "stats":        StatsTab.init();        break;
         case "governance":   GovernanceTab.init();   break;
+        case "graph":        GraphTab.init();        break;
       }
     }
   }
@@ -264,6 +265,47 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   window.ToolsTab = ToolsTab;
 
+  // ─── Schema Search (Knowledge) ───────────────
+  const SchemaSearch = {
+    _timer: null,
+
+    bind() {
+      const input   = document.getElementById("schema-search-input");
+      const results = document.getElementById("schema-search-results");
+      if (!input) return;
+      input.addEventListener("input", () => {
+        clearTimeout(this._timer);
+        const q = input.value.trim();
+        if (q.length < 2) { results.innerHTML = ""; return; }
+        results.innerHTML = '<p class="dim" style="padding:8px;">Buscando...</p>';
+        this._timer = setTimeout(() => this._search(q, results), 350);
+      });
+    },
+
+    async _search(q, container) {
+      try {
+        const data = await apiFetch(`/api/knowledge/search?q=${encodeURIComponent(q)}`);
+        if (!data.results.length) {
+          container.innerHTML = '<p class="dim" style="padding:8px;">Nenhum resultado.</p>';
+          return;
+        }
+        container.innerHTML = data.results.slice(0, 20).map(r => `
+          <div class="schema-result">
+            <div class="schema-result-title">
+              <span class="mono">${escapeHtml(r.table)}</span>
+              <span class="module-chip" style="font-size:0.65rem;padding:2px 6px;">${r.category}</span>
+            </div>
+            <div class="dim" style="font-size:0.75rem;">${escapeHtml(r.label)}</div>
+            ${r.matches.map(m => `<div class="schema-match mono">${escapeHtml(m)}</div>`).join("")}
+          </div>
+        `).join("");
+      } catch (err) {
+        container.innerHTML = `<p class="error-text">Erro: ${escapeHtml(err.message)}</p>`;
+      }
+    },
+  };
+  SchemaSearch.bind();
+
   document.getElementById("tools-search").addEventListener("input", () => ToolsTab.render());
   document.getElementById("close-drawer").addEventListener("click", () => {
     document.getElementById("tool-drawer").classList.remove("active");
@@ -444,16 +486,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async refresh() {
       try {
-        const data = await apiFetch("/api/stats");
+        const [data, heatmap] = await Promise.all([
+          apiFetch("/api/stats"),
+          apiFetch("/api/activity/heatmap").catch(() => null),
+        ]);
         this._renderServer(data.server);
         this._renderCache(data.cache);
         this._renderKnowledge(data.knowledge);
         this._renderActivity(data.server);
+        if (heatmap) this._renderHeatmap(heatmap);
         document.getElementById("stats-updated").textContent =
           `Atualizado: ${new Date().toLocaleTimeString("pt-BR")}`;
       } catch (err) {
         document.getElementById("stats-updated").textContent = `Erro: ${err.message}`;
       }
+    },
+
+    _renderHeatmap(data) {
+      const el = document.getElementById("stats-heatmap");
+      if (!el || !data.rows.length) return;
+      const maxAvg = Math.max(...data.rows.map(r => r.avg_ms), 1);
+      el.innerHTML = data.rows.slice(0, 20).map(r => {
+        const pct   = Math.min(100, Math.round((r.avg_ms / maxAvg) * 100));
+        const cls   = r.avg_ms > 3000 ? "heat-hot" : r.avg_ms > 1000 ? "heat-warm" : "heat-cool";
+        const errCls = r.error_rate > 20 ? "error-text" : r.error_rate > 0 ? "warn-text" : "";
+        return `
+          <div class="heat-row">
+            <span class="heat-name mono">${escapeHtml(r.tool)}</span>
+            <div class="heat-bar-wrap">
+              <div class="heat-bar ${cls}" style="width:${pct}%"></div>
+            </div>
+            <span class="heat-val">${formatMs(r.avg_ms)}</span>
+            <span class="heat-calls dim">${r.calls}x</span>
+            ${r.errors ? `<span class="heat-err ${errCls}">${r.errors}✗</span>` : ""}
+          </div>
+        `;
+      }).join("");
     },
 
     _row(label, value) {
@@ -619,6 +687,150 @@ document.addEventListener("DOMContentLoaded", () => {
       return html;
     },
   };
+
+  // ─────────────────────────────────────────────
+  //  Graph Tab — D3.js Table Dependency Explorer
+  // ─────────────────────────────────────────────
+  const GraphTab = {
+    _simulation: null,
+    _catFilter:  null,
+
+    async init() {
+      const empty = document.getElementById("graph-empty");
+      try {
+        const data = await apiFetch("/api/knowledge/graph");
+        if (!data.nodes.length) {
+          empty.textContent = "Nenhum schema no knowledge/ ainda. Execute sn_sync_knowledge_base primeiro.";
+          return;
+        }
+        empty.style.display = "none";
+        this._setupFilters(data.nodes);
+        this._render(data);
+      } catch (err) {
+        empty.textContent = `Erro: ${err.message}`;
+      }
+    },
+
+    _catColors: { CORE: "#00e5ff", CUSTOM: "#69f0ae", SYSTEM: "#ffab40" },
+
+    _setupFilters(nodes) {
+      const cats = [...new Set(nodes.map(n => n.category))].sort();
+      const bar  = document.getElementById("graph-filter-bar");
+      bar.innerHTML = cats.map(c =>
+        `<button class="module-chip active" data-cat="${c}" style="border-color:${this._catColors[c] || '#666'}">${c}</button>`
+      ).join("");
+      bar.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", () => {
+          btn.classList.toggle("active");
+          const active = [...bar.querySelectorAll("button.active")].map(b => b.dataset.cat);
+          this._applyFilter(active);
+        });
+      });
+    },
+
+    _applyFilter(activeCats) {
+      if (!this._svg) return;
+      this._svg.selectAll("circle").style("opacity", d => activeCats.includes(d.category) ? 1 : 0.08);
+      this._svg.selectAll("text.node-label").style("opacity", d => activeCats.includes(d.category) ? 1 : 0);
+    },
+
+    _render(data) {
+      if (typeof d3 === "undefined") {
+        document.getElementById("graph-empty").textContent = "D3.js não disponível. Verifique a conexão com a internet.";
+        document.getElementById("graph-empty").style.display = "";
+        return;
+      }
+
+      const container = document.getElementById("graph-canvas");
+      container.innerHTML = "";
+
+      const W = container.clientWidth  || 900;
+      const H = container.clientHeight || 560;
+
+      const svg = d3.select(container).append("svg")
+        .attr("width", "100%").attr("height", H)
+        .call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", ev => g.attr("transform", ev.transform)));
+
+      const g = svg.append("g");
+
+      // Arrow marker
+      svg.append("defs").append("marker")
+        .attr("id", "arrow").attr("viewBox", "0 -5 10 10")
+        .attr("refX", 20).attr("refY", 0)
+        .attr("markerWidth", 6).attr("markerHeight", 6)
+        .attr("orient", "auto")
+        .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#333");
+
+      const link = g.append("g").selectAll("line")
+        .data(data.edges).join("line")
+        .attr("stroke", "#2a2a2a").attr("stroke-width", 1)
+        .attr("marker-end", "url(#arrow)");
+
+      const catColors = this._catColors;
+      const rScale = n => Math.max(7, Math.min(22, Math.sqrt(n.field_count) * 2.5));
+
+      const node = g.append("g").selectAll("circle")
+        .data(data.nodes).join("circle")
+        .attr("r", rScale)
+        .attr("fill", d => catColors[d.category] || "#888")
+        .attr("fill-opacity", 0.85)
+        .attr("stroke", "#000").attr("stroke-width", 1)
+        .attr("cursor", "pointer")
+        .call(d3.drag()
+          .on("start", (ev, d) => { if (!ev.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+          .on("drag",  (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
+          .on("end",   (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+      const label = g.append("g").selectAll("text")
+        .data(data.nodes.filter(n => n.field_count >= 8)).join("text")
+        .attr("class", "node-label")
+        .attr("font-size", "8px").attr("fill", "#9e9e9e")
+        .attr("text-anchor", "middle").attr("pointer-events", "none")
+        .attr("dy", d => rScale(d) + 10)
+        .text(d => d.id);
+
+      // Tooltip
+      const tip = d3.select(container).append("div").attr("class", "graph-tooltip");
+      node.on("mousemove", (ev, d) => {
+        tip.style("display", "block")
+          .style("left", `${ev.offsetX + 14}px`).style("top", `${ev.offsetY - 8}px`)
+          .html(`<strong>${d.id}</strong><br><span style="color:#888">${d.label}</span><br>${d.category} • ${d.field_count} campos`);
+      }).on("mouseleave", () => tip.style("display", "none"))
+        .on("click", (_, d) => this._sidebar(d));
+
+      const sim = d3.forceSimulation(data.nodes)
+        .force("link",      d3.forceLink(data.edges).id(d => d.id).distance(90))
+        .force("charge",    d3.forceManyBody().strength(-250))
+        .force("center",    d3.forceCenter(W / 2, H / 2))
+        .force("collision", d3.forceCollide().radius(d => rScale(d) + 4))
+        .on("tick", () => {
+          link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+              .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+          node.attr("cx", d => d.x).attr("cy", d => d.y);
+          label.attr("x", d => d.x).attr("y", d => d.y);
+        });
+
+      this._simulation = sim;
+      this._svg = svg;
+    },
+
+    _sidebar(d) {
+      document.getElementById("graph-sidebar-title").textContent = d.id;
+      document.getElementById("graph-sidebar-info").innerHTML = `
+        <div class="dim" style="margin-bottom:8px;">${escapeHtml(d.label)}</div>
+        <span class="module-chip active" style="border-color:${this._catColors[d.category] || '#666'}">${d.category}</span>
+        <span class="dim" style="margin-left:8px;">${d.field_count} campos</span>
+        <div style="margin-top:12px;">
+          <button class="btn-tech small" onclick="ToolsTab.openDrawer('sn_query_records')">↗ Query via MCP</button>
+        </div>
+      `;
+      document.getElementById("graph-sidebar").classList.add("open");
+    },
+  };
+
+  document.getElementById("close-graph-sidebar")?.addEventListener("click", () => {
+    document.getElementById("graph-sidebar").classList.remove("open");
+  });
 
   // ─────────────────────────────────────────────
   //  Modal — Instance Manager

@@ -1,6 +1,6 @@
 {
   "name": "servicenow-mcp-server",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "description": "MCP Server para desenvolvimento no ServiceNow via Claude, VS Code e Google Agentspace",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,8 @@
     "dashboard": "tsx src/dashboard/server.ts",
     "dev": "tsx --watch src/index.ts",
     "test": "tsx --test test/*.test.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "add-tool": "tsx scripts/add-tool.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

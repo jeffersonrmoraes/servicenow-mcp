@@ -1,5 +1,6 @@
 import { snGet, snPost, snPatch } from "../lib/client.js";
 import { validateTableName, validateSysId, validateLimit, validateDataPayload, validateEncodedQuery } from "../lib/validate.js";
+import { validateFields } from "../lib/schema-validator.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — Core CRUD (v5.0)
@@ -159,7 +160,12 @@ export async function handleCrudTool(name: string, args: any) {
         ...(query      && { sysparm_query:  query      }),
         ...(args.fields && { sysparm_fields: args.fields }),
       }, env);
-      return { result, meta: { offset, limit, count: result.length } };
+      const unknownFields = args.fields
+        ? await validateFields(args.table, args.fields.split(",").map((f: string) => f.trim()))
+        : [];
+      const meta: any = { offset, limit, count: result.length };
+      if (unknownFields.length) meta.schema_warnings = [`Campos não reconhecidos no schema local: ${unknownFields.join(", ")} — verifique a grafia ou execute sn_sync_knowledge_base.`];
+      return { result, meta };
     }
 
     case "sn_get_record": {
@@ -172,7 +178,9 @@ export async function handleCrudTool(name: string, args: any) {
     case "sn_create_record": {
       validateTableName(args.table);
       validateDataPayload(args.data);
+      const unknownFields = await validateFields(args.table, Object.keys(args.data));
       const { result } = await snPost(`/api/now/table/${args.table}`, args.data, env);
+      if (unknownFields.length) (result as any)._schema_warnings = [`Campos não reconhecidos: ${unknownFields.join(", ")}`];
       return result;
     }
 
@@ -180,7 +188,9 @@ export async function handleCrudTool(name: string, args: any) {
       validateTableName(args.table);
       validateSysId(args.sys_id);
       validateDataPayload(args.data);
+      const unknownFields = await validateFields(args.table, Object.keys(args.data));
       const { result } = await snPatch(`/api/now/table/${args.table}/${args.sys_id}`, args.data, env);
+      if (unknownFields.length) (result as any)._schema_warnings = [`Campos não reconhecidos: ${unknownFields.join(", ")}`];
       return result;
     }
 

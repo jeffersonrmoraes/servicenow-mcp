@@ -19,6 +19,7 @@ import {
 import { ToolDefinition, ToolHandler, MCPResource } from "./types.js";
 import { persistLoad } from "./lib/cache.js";
 import { logActivity } from "./lib/activity.js";
+import { triggerJITSync } from "./lib/jit-harvester.js";
 
 // ─────────────────────────────────────────────
 //  Tool Modules (v5.0 — split architecture)
@@ -44,7 +45,7 @@ import { governanceTools,   handleGovernanceTool   } from "./tools/governance.js
 // ─────────────────────────────────────────────
 //  Versão — fonte única de verdade
 // ─────────────────────────────────────────────
-const VERSION = "6.0.0";
+const VERSION = "7.0.0";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas
@@ -305,6 +306,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   const start = Date.now();
   const env   = (args as any)?.env || "default";
+
+  // JIT Harvester — background sync if table is not yet in knowledge/
+  const table = (args as any)?.table;
+  if (table && typeof table === "string") triggerJITSync(table, env);
 
   try {
     const result = await handler(name, args);

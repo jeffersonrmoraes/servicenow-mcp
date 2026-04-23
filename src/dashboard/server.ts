@@ -322,7 +322,7 @@ app.get("/api/stats", async (_req: Request, res: Response) => {
   ]);
   res.json({
     server: {
-      version:   "6.0.0",
+      version:   "7.0.0",
       tools:     ALL_TOOLS.length,
       uptime_s:  Math.floor(process.uptime()),
       node:      process.version,
@@ -420,9 +420,163 @@ app.post("/api/governance/lint", async (req: Request, res: Response) => {
 });
 
 // ─────────────────────────────────────────────
+//  v3.0 Endpoints
+// ─────────────────────────────────────────────
+
+// Full-text schema search across knowledge/ markdown files
+app.get("/api/knowledge/search", async (req: Request, res: Response) => {
+  const q = ((req.query.q as string) || "").trim().toLowerCase();
+  if (!q || q.length < 2) return res.json({ results: [] });
+
+  if (!fsSync.existsSync(knowledgeDir)) return res.json({ results: [] });
+
+  const results: Array<{ table: string; category: string; label: string; matches: string[] }> = [];
+
+  try {
+    const cats = (await fs.readdir(knowledgeDir, { withFileTypes: true }))
+      .filter(e => e.isDirectory()).map(e => e.name);
+
+    await Promise.all(cats.map(async cat => {
+      const files = (await fs.readdir(path.join(knowledgeDir, cat))).filter(f => f.endsWith(".md"));
+      await Promise.all(files.map(async file => {
+        const filePath = path.join(knowledgeDir, cat, file);
+        try {
+          const content = await fs.readFile(filePath, "utf8");
+          if (!content.toLowerCase().includes(q)) return;
+
+          const tableName = file.replace(".md", "");
+          const titleMatch = content.match(/# ServiceNow Table: (.+?) \(/);
+          const label = titleMatch ? titleMatch[1].trim() : tableName;
+
+          // Collect matching lines (field names, labels, types)
+          const lines = content.split("\n");
+          const matchLines = lines
+            .filter(l => l.toLowerCase().includes(q) && l.startsWith("|"))
+            .map(l => l.replace(/\|/g, " ").replace(/`/g, "").trim())
+            .slice(0, 5);
+
+          results.push({ table: tableName, category: cat.toUpperCase(), label, matches: matchLines });
+        } catch { /* skip unreadable files */ }
+      }));
+    }));
+
+    results.sort((a, b) => {
+      // Exact table name match first
+      if (a.table === q) return -1;
+      if (b.table === q) return 1;
+      if (a.table.startsWith(q)) return -1;
+      if (b.table.startsWith(q)) return 1;
+      return a.table.localeCompare(b.table);
+    });
+
+    res.json({ query: q, count: results.length, results: results.slice(0, 50) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dependency graph data (nodes + edges) from knowledge/ reference fields
+app.get("/api/knowledge/graph", async (_req: Request, res: Response) => {
+  if (!fsSync.existsSync(knowledgeDir)) return res.json({ nodes: [], edges: [] });
+
+  const nodes: Array<{ id: string; label: string; category: string; field_count: number }> = [];
+  const edgeSet = new Set<string>();
+  const edges: Array<{ source: string; target: string; field: string }> = [];
+
+  try {
+    const cats = (await fs.readdir(knowledgeDir, { withFileTypes: true }))
+      .filter(e => e.isDirectory()).map(e => e.name);
+
+    // Collect all known table names first for edge filtering
+    const knownTables = new Set<string>();
+    for (const cat of cats) {
+      const files = (await fs.readdir(path.join(knowledgeDir, cat))).filter(f => f.endsWith(".md"));
+      files.forEach(f => knownTables.add(f.replace(".md", "")));
+    }
+
+    await Promise.all(cats.map(async cat => {
+      const files = (await fs.readdir(path.join(knowledgeDir, cat))).filter(f => f.endsWith(".md"));
+      await Promise.all(files.map(async file => {
+        const tableName = file.replace(".md", "");
+        try {
+          const content = await fs.readFile(path.join(knowledgeDir, cat, file), "utf8");
+          const titleMatch = content.match(/# ServiceNow Table: (.+?) \(/);
+          const label = titleMatch ? titleMatch[1].trim() : tableName;
+
+          // Count fields
+          const fieldRows = (content.match(/^\|\s*`[^`]+`/gm) || []).length;
+          nodes.push({ id: tableName, label, category: cat.toUpperCase(), field_count: fieldRows });
+
+          // Parse reference edges: | `field` | Label | reference | target_table | ... |
+          const rows = content.split("\n").filter(l => /^\|\s*`/.test(l));
+          for (const row of rows) {
+            const cols = row.split("|").map(c => c.trim());
+            // cols: ["", "`field`", "Label", "type", "reference_target", "mandatory", ""]
+            if (cols.length >= 5) {
+              const fieldName = cols[1]?.replace(/`/g, "");
+              const typeCol   = cols[3]?.toLowerCase();
+              const refTable  = cols[4];
+              if (
+                typeCol === "reference" && refTable && refTable !== "-" &&
+                knownTables.has(refTable) && refTable !== tableName
+              ) {
+                const edgeKey = `${tableName}→${refTable}`;
+                if (!edgeSet.has(edgeKey)) {
+                  edgeSet.add(edgeKey);
+                  edges.push({ source: tableName, target: refTable, field: fieldName });
+                }
+              }
+            }
+          }
+        } catch { /* skip */ }
+      }));
+    }));
+
+    res.json({ nodes, edges, node_count: nodes.length, edge_count: edges.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Latency heatmap: aggregate activity log by tool and environment
+app.get("/api/activity/heatmap", async (_req: Request, res: Response) => {
+  try {
+    const entries = await readActivity(500);
+    const byTool: Record<string, { calls: number; errors: number; total_ms: number; min_ms: number; max_ms: number }> = {};
+
+    for (const e of entries) {
+      const key = e.tool || "unknown";
+      if (!byTool[key]) byTool[key] = { calls: 0, errors: 0, total_ms: 0, min_ms: Infinity, max_ms: 0 };
+      const s = byTool[key];
+      s.calls++;
+      if (e.status === "error") s.errors++;
+      if (typeof e.duration === "number") {
+        s.total_ms += e.duration;
+        if (e.duration < s.min_ms) s.min_ms = e.duration;
+        if (e.duration > s.max_ms) s.max_ms = e.duration;
+      }
+    }
+
+    const rows = Object.entries(byTool).map(([tool, s]) => ({
+      tool,
+      calls:    s.calls,
+      errors:   s.errors,
+      avg_ms:   s.calls > 0 ? Math.round(s.total_ms / s.calls) : 0,
+      min_ms:   s.min_ms === Infinity ? 0 : s.min_ms,
+      max_ms:   s.max_ms,
+      error_rate: s.calls > 0 ? Math.round((s.errors / s.calls) * 100) : 0,
+    })).sort((a, b) => b.avg_ms - a.avg_ms);
+
+    res.json({ tool_count: rows.length, sample_size: entries.length, rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
 //  Start
 // ─────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\x1b[36m%s\x1b[0m`, `MCP Dashboard v2.0 → http://localhost:${PORT}`);
+  console.log(`\x1b[36m%s\x1b[0m`, `MCP Dashboard v3.0 → http://localhost:${PORT}`);
   console.log(`\x1b[2m%s\x1b[0m`, `Activity log: ${ACTIVITY_PATH}`);
 });
