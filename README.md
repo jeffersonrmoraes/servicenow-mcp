@@ -1,13 +1,13 @@
 # ServiceNow MCP Server
 
-[![v7.0.0](https://img.shields.io/badge/version-7.0.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v7.1.0](https://img.shields.io/badge/version-7.1.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
 
-**v7.0.0** — 50 ferramentas ativas, 4 MCP Prompts, Dashboard v3.0 com Graph Explorer (D3.js), Schema Search, Latency Heatmap e SSE live activity. JIT Harvester para auto-sync de tabelas desconhecidas. Schema-Aware Validation com warnings em operações CRUD. Linter de Update Sets com 15 checks. Tool Scaffolder CLI.
+**v7.1.0** — 51 ferramentas ativas, 5 MCP Prompts. Nova ferramenta `sn_generate_execution_plan` com análise de impacto em tempo real. Novo prompt `safe_change_request` que guia o agente pelo fluxo Plan → Impact → Approval antes de qualquer operação mutante. Dashboard v3.0 com Graph Explorer (D3.js), Schema Search e Latency Heatmap.
 
 ---
 
@@ -239,7 +239,7 @@ npm run add-tool <module> <sn_tool_name>
 
 ## Ferramentas Disponíveis
 
-50 ferramentas organizadas em 17 módulos.
+51 ferramentas organizadas em 17 módulos.
 
 ### Core CRUD
 
@@ -317,6 +317,7 @@ npm run add-tool <module> <sn_tool_name>
 | `sn_set_current_update_set` | Define o Update Set atual |
 | `sn_list_update_sets` | Lista Update Sets disponíveis |
 | `sn_complete_update_set` | Marca um Update Set como completo |
+| `sn_generate_execution_plan` | Gera plano de execução + análise de impacto em tempo real antes de operações mutantes |
 | `sn_check_update_set` | Linter de qualidade com 15 checks de boas práticas ServiceNow |
 
 ### Logs & Observabilidade
@@ -355,7 +356,7 @@ npm run add-tool <module> <sn_tool_name>
 
 ## MCP Prompts
 
-O servidor v6.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflows comuns:
+O servidor expõe 5 prompts predefinidos que guiam agentes de IA em workflows comuns:
 
 | Prompt | Descrição |
 |---|---|
@@ -363,6 +364,31 @@ O servidor v6.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflo
 | `debug_incident` | Workflow para investigar e diagnosticar um incident |
 | `analyze_table` | Análise completa: schema, dependencies, ACLs, scripts |
 | `onboarding_app` | Scaffold de uma aplicação de onboarding completa |
+| `safe_change_request` | **Governança de Mudanças**: gera plano de execução + análise de impacto e aguarda aprovação antes de qualquer operação mutante |
+
+## Governança de Mudanças — Fluxo Plan → Impact → Approval
+
+A partir da v7.1.0, o MCP oferece um fluxo de segurança consultivo para operações mutantes. O prompt `safe_change_request` instrui o agente a:
+
+1. **Planejar** — chamar `sn_generate_execution_plan` para gerar um plano detalhado
+2. **Analisar o impacto** — a ferramenta consulta a instância em tempo real (Business Rules, Client Scripts, ACLs, registros afetados)
+3. **Pedir aprovação** — se `requires_approval: true`, o agente para e aguarda confirmação explícita do usuário antes de executar qualquer operação
+
+> **Importante**: O fluxo é consultivo — o MCP não bloqueia tecnicamente chamadas subsequentes. O prompt guia a IA a interromper e solicitar aprovação explícita do usuário.
+
+### `sn_generate_execution_plan` — Parâmetros
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `operation_type` | string | `create_table`, `modify_table`, `create_script`, `modify_script`, `deploy_update_set`, `modify_acl`, `bulk_update`, `generic` |
+| `description` | string | Descrição clara do que será feito (obrigatório) |
+| `target_table` | string | Tabela principal envolvida (ex: `incident`) |
+| `target_name` | string | Nome do script ou artefato alvo |
+| `update_set_id` | string | sys_id do Update Set — aparecerá no plano de lint |
+| `preview_query` | string | Encoded query para `bulk_update` — conta registros afetados |
+| `env` | string | Prefixo do ambiente (ex: `PDI`, `DEV`) |
+
+O retorno inclui `report_markdown` com plano completo, `requires_approval` (boolean), e campo `steps` estruturado com ferramenta e nível de risco por passo.
 
 ---
 
@@ -381,6 +407,7 @@ O servidor v6.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflo
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **v7.1.0** | 2026-04-23 | Governança de Mudanças: `sn_generate_execution_plan` (análise de impacto em tempo real — BRs, Client Scripts, ACLs, bulk count). Prompt `safe_change_request` (fluxo Plan→Impact→Approval). 51 ferramentas, 5 prompts. 14 testes unitários para o planner. |
 | **v7.0.0** | 2026-04-23 | Dashboard v3.0 (Graph Explorer D3.js, Schema Search, Latency Heatmap, 6 abas). JIT Harvester (auto-sync de tabelas desconhecidas em background). Schema-Aware Validation (warnings de campos inválidos em CRUD). Linter expandido para 15 checks (`hardcoded_urls`, `hardcoded_secrets`, `missing_description`). Governance sub-modularizado (`src/tools/governance/`). Tool Scaffolder CLI (`npm run add-tool`). |
 | **v6.0.0** | 2026-04-17 | 50 ferramentas. Dashboard v2.0 (5 abas, SSE live activity, linter UI). Novos módulos: `sn_stream_syslog`, `sn_get_node_log` (admin-only), `sn_check_update_set` (12 checks). Cache persistente em JSON. Activity log JSONL (IPC MCP→Dashboard). Deep Discovery em `sn_analyze_impact`. Harvester default 50 tabelas. |
 | **v5.0.0** | 2026-04-17 | 46 ferramentas. Arquitetura split (15 módulos). LRU cache com eviction. Retry com exponential backoff. MCP Prompts (4). Novos tools: `sn_clone_record`, `sn_diff_records`, `sn_search_global`. Script sanitization. OAuth memory-only. Delete completamente removido. Testes migrados para TypeScript. Build step com `tsc`. |

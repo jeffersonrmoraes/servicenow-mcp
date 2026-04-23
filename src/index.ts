@@ -45,7 +45,7 @@ import { governanceTools,   handleGovernanceTool   } from "./tools/governance.js
 // ─────────────────────────────────────────────
 //  Versão — fonte única de verdade
 // ─────────────────────────────────────────────
-const VERSION = "7.0.0";
+const VERSION = "7.1.0";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas
@@ -177,6 +177,17 @@ const MCP_PROMPTS = [
       { name: "app_name", description: "Nome da aplicação (ex: Smart Onboarding AI)", required: true },
     ],
   },
+  {
+    name: "safe_change_request",
+    description: "Fluxo de governança seguro: gera plano de execução + análise de impacto e aguarda aprovação explícita antes de qualquer operação mutante.",
+    arguments: [
+      { name: "operation_type", description: "Tipo de operação: create_table, modify_table, create_script, modify_script, deploy_update_set, modify_acl, bulk_update, generic", required: true },
+      { name: "description",    description: "Descrição clara do que será feito (ex: 'Criar Business Rule na tabela incident para enviar email ao fechar')", required: true },
+      { name: "target_table",   description: "Tabela principal envolvida (ex: incident)", required: false },
+      { name: "target_name",    description: "Nome do script/campo/artefato (ex: IncidentNotifier)", required: false },
+      { name: "env",            description: "Prefixo do ambiente (ex: PDI, DEV)", required: false },
+    ],
+  },
 ];
 
 function getPromptMessages(name: string, args: Record<string, string>): any[] {
@@ -268,6 +279,43 @@ Apresente um relatório completo com:
    - Formulário de solicitação com variáveis
 
 Siga a referência do Smart Onboarding AI documentada no GEMINI.md.`,
+        },
+      }];
+
+    case "safe_change_request":
+      return [{
+        role: "user",
+        content: {
+          type: "text",
+          text: `Quero fazer a seguinte mudança no ServiceNow:
+
+**Operação**: ${args.operation_type || "generic"}
+**Descrição**: ${args.description || "(não especificada)"}
+${args.target_table ? `**Tabela alvo**: ${args.target_table}` : ""}
+${args.target_name  ? `**Artefato alvo**: ${args.target_name}` : ""}
+${args.env          ? `**Ambiente**: ${args.env}` : ""}
+
+Antes de executar qualquer operação, siga obrigatoriamente este fluxo:
+
+**PASSO 1 — Gerar o Plano de Execução**
+Chame a ferramenta \`sn_generate_execution_plan\` com os parâmetros acima.
+Exiba o campo \`report_markdown\` do resultado integralmente para o usuário.
+
+**PASSO 2 — Análise de Aprovação**
+Verifique o campo \`requires_approval\` no resultado:
+- Se \`true\`: informe o usuário e aguarde confirmação explícita ("aprovado", "pode executar", "sim" ou equivalente).
+  NÃO execute nenhuma ferramenta mutante (POST, PATCH, criação, atualização, bulk) antes da aprovação.
+- Se \`false\`: prossiga, mas ainda assim mostre o plano ao usuário antes de executar.
+
+**PASSO 3 — Execução (somente após aprovação)**
+Execute cada passo do plano na ordem indicada, usando as ferramentas MCP listadas.
+Reporte o resultado de cada passo antes de passar para o próximo.
+
+**PASSO 4 — Verificação Final**
+Confirme que cada artefato foi criado/modificado corretamente.
+Se houver erro em qualquer passo, pare e consulte o usuário antes de continuar.
+
+Lembre-se: nunca pule a análise de impacto. Nunca execute operações mutantes sem mostrar o plano primeiro.`,
         },
       }];
 

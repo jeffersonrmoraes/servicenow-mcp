@@ -1,4 +1,4 @@
-# Guia de Ferramentas — ServiceNow MCP Server (v7.0.0)
+# Guia de Ferramentas — ServiceNow MCP Server (v7.1.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
@@ -32,6 +32,7 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 8. **Logs de sistema**: Use `sn_stream_syslog` para investigar erros em produção (requer role `admin`). Suporta filtros por nível (`debug`/`info`/`warn`/`error`) e intervalos relativos (`-1h`, `-30m`).
 9. **JIT Harvester**: O servidor sincroniza automaticamente tabelas desconhecidas em background quando detecta um `table` não presente em `knowledge/`. Não é necessária ação manual — o contexto fica disponível nas próximas chamadas.
 10. **Schema Warnings**: `sn_query_records`, `sn_create_record` e `sn_update_record` retornam `schema_warnings` ou `_schema_warnings` quando campos não reconhecidos são usados. Esses avisos são não-bloqueantes — a operação ainda é executada.
+11. **Governança de Mudanças**: Use `sn_generate_execution_plan` ANTES de qualquer operação mutante (criar tabela, modificar script, bulk update, deploy de Update Set, modificar ACL). O prompt `safe_change_request` automatiza esse fluxo: gera o plano, mostra ao usuário e aguarda aprovação explícita quando `requires_approval: true`.
 
 ---
 
@@ -84,12 +85,15 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 - `sn_manage_notification` — notificações de email
 - `sn_manage_access` — Roles, Grupos e acessos de usuários
 
+### Governança de Mudanças
+- `sn_generate_execution_plan` — **USAR ANTES DE QUALQUER MUTAÇÃO** — plano de execução com análise de impacto em tempo real (BRs, Client Scripts, ACLs, contagem de registros). Retorna `report_markdown`, `requires_approval` e `steps` estruturados com nível de risco
+
 ### Deploy & Update Sets
 - `sn_create_update_set` — cria Update Set
 - `sn_set_current_update_set` — define o Update Set ativo
 - `sn_list_update_sets` — lista Update Sets (filtrável por estado)
 - `sn_complete_update_set` — marca como completo
-- `sn_check_update_set` — linter com 12 checks de boas práticas
+- `sn_check_update_set` — linter com 15 checks de boas práticas
 
 ### Logs & Observabilidade
 - `sn_stream_syslog` — lê entradas do syslog por nível, intervalo e nó. **Requer role `admin`**

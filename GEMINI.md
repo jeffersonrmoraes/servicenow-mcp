@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v7.0.0)
+# GEMINI.md — Contexto do Projeto para IA (v7.1.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,7 +7,7 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `7.0.0`
+- **Versão Atual**: `7.1.0`
 - **Descrição**: Servidor MCP que expõe 50 ferramentas e 4 prompts para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API) — 100% TypeScript com `tsx`.
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
@@ -57,7 +57,8 @@ servicenow-mcp/
 │       └── governance.ts      ← Barrel re-export (→ governance/handler.ts + governance/checks.ts)
 │           governance/
 │           ├── checks.ts      ← 15 funções de check + LintIssue interface + ALL_CHECKS array
-│           └── handler.ts     ← governanceTools array + handleGovernanceTool function
+│           ├── handler.ts     ← governanceTools array + handleGovernanceTool function
+│           └── planner.ts     ← generateExecutionPlan: análise de impacto + plano + Markdown report
 ├── scripts/
 │   └── add-tool.ts            ← Tool Scaffolder CLI (npm run add-tool <module> <sn_tool_name>)
 ├── knowledge/                 ← Metadados locais da instância (gerado pelo Harvester)
@@ -75,6 +76,7 @@ servicenow-mcp/
 │   ├── governance.test.ts     ← Testes do linter (cada check individualmente)
 │   ├── logs.test.ts           ← Testes das ferramentas de log
 │   ├── relationships.test.ts  ← Testes do deep discovery
+│   ├── planner.test.ts        ← 14 testes unitários do planner (puro, sem rede)
 │   └── integration.test.ts    ← Testes de integração (Live)
 ├── AI_REFERENCE.md            ← Guia de uso para IAs consumidoras
 ├── GEMINI.md                  ← Este arquivo (contexto para desenvolvedores)
@@ -95,7 +97,7 @@ servicenow-mcp/
 | Dashboard | Express + Vanilla HTML/JS (sem framework) |
 | MCP Transport | Stdio |
 | IPC MCP→Dashboard | JSONL append-only (`.sn-activity.jsonl`) com byte-offset polling |
-| Versão fonte única | `const VERSION = "7.0.0"` em `src/index.ts` e `"version"` em `package.json` |
+| Versão fonte única | `const VERSION = "7.1.0"` em `src/index.ts` e `"version"` em `package.json` |
 
 ---
 
@@ -255,6 +257,8 @@ O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_inciden
 15. **JIT Harvester**: Fire-and-forget em `src/index.ts` — `triggerJITSync(table, env)` antes do try/catch de execução. Nunca bloqueie a chamada esperando o sync.
 16. **Schema Validator**: `validateFields` retorna array vazio quando a tabela não está em `knowledge/` — nunca lança exceção. Adicione warnings ao resultado sem bloquear a operação.
 17. **Governance barrel**: Importe sempre de `"./tools/governance.js"` — o barrel re-exporta de `governance/handler.js` e `governance/checks.js`. Não importe diretamente dos sub-módulos em `src/index.ts`.
+18. **Fluxo de governança**: Chame `sn_generate_execution_plan` antes de qualquer ferramenta mutante. Se `requires_approval: true`, exiba `report_markdown` integralmente e aguarde confirmação explícita antes de prosseguir. Nunca pule esse passo em operações de tipo `deploy_update_set`, `bulk_update` ou `modify_acl`.
+19. **Prompt `safe_change_request`**: Automatiza o fluxo Plan→Impact→Approval. Use-o quando o usuário solicitar mudanças complexas ou de alto risco — ele garante que a IA gera o plano, mostra ao usuário e só executa com aprovação explícita.
 
 ---
 

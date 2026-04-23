@@ -10,12 +10,40 @@ import {
   checkHardcodedUrls, checkHardcodedSecrets, checkMissingDescription,
   checkMissingDeps,
 } from "./checks.js";
+import { generateExecutionPlan, OperationType } from "./planner.js";
 
 // ─────────────────────────────────────────────
 //  Tool Definitions
 // ─────────────────────────────────────────────
 
 export const governanceTools = [
+  {
+    name: "sn_generate_execution_plan",
+    description:
+      "Gera um plano de execução detalhado com análise de impacto ANTES de qualquer operação mutante. " +
+      "Descobre Business Rules, Client Scripts e ACLs afetados consultando a instância em tempo real. " +
+      "Retorna relatório Markdown com passos ordenados, riscos identificados e plano de rollback. " +
+      "Indica se aprovação explícita do usuário é necessária antes de prosseguir. " +
+      "Use SEMPRE antes de criar/modificar tabelas, scripts, ACLs, Update Sets ou bulk updates.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        env:           { type: "string", description: "Prefixo do ambiente (opcional, ex: PDI, DEV)" },
+        operation_type: {
+          type: "string",
+          enum: ["create_table", "modify_table", "create_script", "modify_script",
+                 "deploy_update_set", "modify_acl", "bulk_update", "generic"],
+          description: "Tipo de operação planejada",
+        },
+        description:   { type: "string", description: "Descrição clara do que será feito (obrigatório)" },
+        target_table:  { type: "string", description: "Nome da tabela principal envolvida (ex: incident)" },
+        target_name:   { type: "string", description: "Nome do script, campo ou artefato alvo (ex: MyScriptInclude)" },
+        update_set_id: { type: "string", description: "sys_id do Update Set — se fornecido, aparecerá no plano de lint" },
+        preview_query: { type: "string", description: "Encoded query para bulk_update — usado para contar registros afetados" },
+      },
+      required: ["operation_type", "description"],
+    },
+  },
   {
     name: "sn_check_update_set",
     description:
@@ -48,6 +76,21 @@ export async function handleGovernanceTool(name: string, args: any) {
   const env: ServiceNowEnv = args.env || null;
 
   switch (name) {
+    case "sn_generate_execution_plan": {
+      if (!args.description) throw new Error("O parâmetro 'description' é obrigatório.");
+      const opType = (args.operation_type || "generic") as OperationType;
+      const plan = await generateExecutionPlan(
+        opType,
+        args.description,
+        env,
+        args.target_table,
+        args.target_name,
+        args.update_set_id,
+        args.preview_query,
+      );
+      return plan;
+    }
+
     case "sn_check_update_set": {
       if (!args.update_set_id && !args.name) {
         throw new Error("Informe update_set_id (sys_id) ou name do Update Set.");
