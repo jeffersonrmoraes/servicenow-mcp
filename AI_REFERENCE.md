@@ -26,13 +26,20 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 2. **Diagnóstico de conexão**: Use `sn_health_check` para verificar se as credenciais estão corretas e qual versão do ServiceNow está em uso.
 3. **Datasets grandes**: Use `sn_query_all` (com cursor `next_offset`) em vez de `sn_query_records` com offset manual para datasets acima de 1000 registros.
 4. **Exports**: Use `sn_export_records` para extrair dados em JSON ou CSV para migração ou análise.
-5. **Deploy seguro**: Crie um Update Set com `sn_create_update_set`, defina-o como atual com `sn_set_current_update_set`, faça as alterações, e complete com `sn_complete_update_set`.
+5. **Deploy seguro e obrigatório**: Antes de QUALQUER criação ou modificação de artefatos:
+   1. Chame `sn_generate_execution_plan` — gere o plano e apresente ao usuário
+   2. Aguarde aprovação explícita do usuário (`requires_approval: true` → não prossiga sem "sim")
+   3. Crie o Update Set com `sn_create_update_set`
+   4. **Imediatamente** defina-o como atual com `sn_set_current_update_set` — sem esta etapa as mudanças vão para o Update Set default
+   5. Execute os artefatos (catalog items, scripts, etc.)
+   6. Feche com `sn_complete_update_set`
 6. **Análise de impacto**: Antes de alterar o schema de uma tabela, use `sn_analyze_impact` com `deep_discovery: true` para ver todas as referências em scripts.
 7. **Qualidade de código**: Antes de promover um Update Set, execute `sn_check_update_set` para detectar problemas de boas práticas — N+1 queries, eval(), current.update(), URLs e secrets hardcoded, etc.
 8. **Logs de sistema**: Use `sn_stream_syslog` para investigar erros em produção (requer role `admin`). Suporta filtros por nível (`debug`/`info`/`warn`/`error`) e intervalos relativos (`-1h`, `-30m`).
 9. **JIT Harvester**: O servidor sincroniza automaticamente tabelas desconhecidas em background quando detecta um `table` não presente em `knowledge/`. Não é necessária ação manual — o contexto fica disponível nas próximas chamadas.
 10. **Schema Warnings**: `sn_query_records`, `sn_create_record` e `sn_update_record` retornam `schema_warnings` ou `_schema_warnings` quando campos não reconhecidos são usados. Esses avisos são não-bloqueantes — a operação ainda é executada.
-11. **Governança de Mudanças**: Use `sn_generate_execution_plan` ANTES de qualquer operação mutante (criar tabela, modificar script, bulk update, deploy de Update Set, modificar ACL). O prompt `safe_change_request` automatiza esse fluxo: gera o plano, mostra ao usuário e aguarda aprovação explícita quando `requires_approval: true`.
+11. **Governança de Mudanças**: `sn_generate_execution_plan` é **obrigatório** antes de qualquer mutação. Não pule esta etapa mesmo que o usuário não mencione explicitamente — o prompt `safe_change_request` automatiza o fluxo completo.
+12. **DELETE bloqueado**: Não existe ferramenta de exclusão física neste servidor MCP. Para inativar um registro use `sn_update_record` com `active: false`. Nunca tente contornar isso — exclusões físicas são irreversíveis e não geram entrada no Update Set.
 
 ---
 
@@ -67,8 +74,9 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 - `sn_manage_ui_page` — UI Pages customizadas
 
 ### Service Catalog
-- `sn_manage_catalog_item` — itens do catálogo
-- `sn_manage_catalog_variable` — variáveis de catalog items
+- `sn_manage_catalog_item` — itens do catálogo (upsert idempotente por `name`)
+- `sn_manage_catalog_variable` — variáveis de catalog items (upsert idempotente por `name` + `cat_item`)
+- `sn_manage_catalog_choice` — choices (opções de dropdown) de variáveis Select Box. Tabela: `question_choice` (campo `question` = sys_id do `item_option_new`, campo `text` = label, campo `order` = sequência). **Nunca use** `sc_choice` (bloqueado via REST em PDIs) nem `item_option_new_set` (Variable Sets — tabela diferente)
 - `sn_manage_catalog_category` — categorias do catálogo
 - `sn_get_catalog_item_bundle` — leitura atômica (item + variáveis + client scripts)
 
@@ -218,7 +226,28 @@ GET /cache.do
 ```
 Aguarda redirect 302. Sem isso, o form renderiza o layout antigo.
 
-### 9. Anti-patterns detectados pelo linter (v7.0)
+### 9. Tipos de Variáveis de Catalog Item (`item_option_new.type`)
+
+O campo `type` usa **valores numéricos** internamente — não use strings como `short_text` ou `yes_no`.
+
+| Valor | Tipo de Campo |
+|-------|--------------|
+| `1`   | Yes / No |
+| `2`   | Multi Line Text |
+| `3`   | Multiple Choice |
+| `4`   | Numeric Scale |
+| `5`   | **Select Box** ← opções via `sn_manage_catalog_choice` |
+| `6`   | **Single Line Text** ← mais comum para texto livre |
+| `7`   | CheckBox |
+| `8`   | Reference |
+| `9`   | Date |
+| `10`  | Date/Time |
+| `16`  | Wide Single Line Text |
+| `18`  | Lookup Select Box |
+
+Armadilha: o valor `1` **não é** Single Line Text — é Yes/No. Nunca assuma correspondência posicional.
+
+### 10. Anti-patterns detectados pelo linter (v7.0)
 
 - **GlideRecord em loop**: Nunca instancie `new GlideRecord` dentro de `while(gr.next())`. Pré-carregue os dados antes do loop.
 - **`current.update()` em Business Rules**: Causa loop infinito. Use `setWorkflow(false)` ou reestruture a lógica.

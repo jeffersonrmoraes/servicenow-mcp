@@ -17,11 +17,14 @@ export interface UpsertResult {
 
 /**
  * Cria (POST) ou atualiza (PATCH) um registro conforme a presença de sys_id.
+ * Se `findBy` for fornecido e não houver sys_id, faz GET primeiro para evitar duplicatas.
+ *
  * @param table   - nome da tabela (ex: sc_cat_item)
- * @param sys_id  - sys_id existente → PATCH; undefined → POST
+ * @param sys_id  - sys_id existente → PATCH direto; undefined → lookup ou POST
  * @param payload - campos a enviar
  * @param env     - prefixo do ambiente
  * @param pick    - campos extras a extrair do result para o retorno
+ * @param findBy  - mapa de campo→valor para lookup preventivo antes de criar
  */
 export async function upsertRecord(
   table: string,
@@ -29,16 +32,35 @@ export async function upsertRecord(
   payload: Record<string, any>,
   env: ServiceNowEnv,
   pick: string[] = [],
+  findBy?: Record<string, string>,
 ): Promise<UpsertResult> {
   if (sys_id) {
     const { result } = await snPatch(`/api/now/table/${table}/${sys_id}`, payload, env);
     const extra = Object.fromEntries(pick.map(k => [k, result[k]]));
     return { action: "updated", sys_id: result.sys_id, ...extra };
-  } else {
-    const { result } = await snPost(`/api/now/table/${table}`, payload, env);
-    const extra = Object.fromEntries(pick.map(k => [k, result[k]]));
-    return { action: "created", sys_id: result.sys_id, ...extra };
   }
+
+  // Lookup preventivo — evita criar duplicatas quando um registro equivalente já existe
+  if (findBy && Object.keys(findBy).length > 0) {
+    const query = Object.entries(findBy)
+      .map(([k, v]) => `${k}=${encodeQueryParam(String(v))}`)
+      .join("^");
+    const { result: found } = await snGet(
+      `/api/now/table/${table}`,
+      { sysparm_query: query, sysparm_fields: "sys_id", sysparm_limit: 1 },
+      env,
+    );
+    if (found?.length) {
+      const existingId = found[0].sys_id;
+      const { result } = await snPatch(`/api/now/table/${table}/${existingId}`, payload, env);
+      const extra = Object.fromEntries(pick.map(k => [k, result[k]]));
+      return { action: "updated", sys_id: result.sys_id, ...extra };
+    }
+  }
+
+  const { result } = await snPost(`/api/now/table/${table}`, payload, env);
+  const extra = Object.fromEntries(pick.map(k => [k, result[k]]));
+  return { action: "created", sys_id: result.sys_id, ...extra };
 }
 
 // ─────────────────────────────────────────────

@@ -329,6 +329,17 @@ export async function snPatch(path: string, body: any, env: ServiceNowEnv = null
   return res.json();
 }
 
+export async function snDelete(path: string, env: ServiceNowEnv = null): Promise<void> {
+  await checkRateLimit(env, "DELETE");
+  const ctx = getContext(env);
+  const res = await fetchWithRetry(`${ctx.instance}${path}`, {
+    method:  "DELETE",
+    headers: ctx.headers,
+  }, "DELETE", path);
+  if (!res.ok) throw await parseHttpError(res, "DELETE", path);
+  invalidateRelatedCaches(path);
+}
+
 export async function snPostBinary(
   path: string,
   bufferContent: Buffer,

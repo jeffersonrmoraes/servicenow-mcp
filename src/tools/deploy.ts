@@ -21,7 +21,7 @@ export const deployTools = [
   },
   {
     name: "sn_set_current_update_set",
-    description: "Define o Update Set atual para capturar as próximas mudanças.",
+    description: "Define o Update Set atual para capturar as próximas mudanças. DEVE ser chamado imediatamente após sn_create_update_set, antes de qualquer criação de artefato — caso contrário as mudanças irão para o Update Set default.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,11 +77,37 @@ export async function handleDeployTool(name: string, args: any) {
 
     case "sn_set_current_update_set": {
       validateSysId(args.sys_id);
-      await snPost("/api/now/table/sys_user_preference", {
-        name:  "sys_update_set",
-        value: args.sys_id,
-        user:  getEnvUser(args.env),
-      }, args.env);
+      const env: ServiceNowEnv = args.env || null;
+      const username = getEnvUser(env);
+
+      // 1. Resolve sys_id do usuário autenticado
+      const { result: userRows } = await snGet("/api/now/table/sys_user", {
+        sysparm_query:  `user_name=${username}`,
+        sysparm_fields: "sys_id",
+        sysparm_limit:  1,
+      }, env);
+      if (!userRows?.length) throw new Error(`Usuário '${username}' não encontrado na instância.`);
+      const userSysId = userRows[0].sys_id;
+
+      // 2. Verifica se a preferência já existe — upsert para não criar duplicata
+      const { result: prefRows } = await snGet("/api/now/table/sys_user_preference", {
+        sysparm_query:  `name=sys_update_set^user=${userSysId}`,
+        sysparm_fields: "sys_id",
+        sysparm_limit:  1,
+      }, env);
+
+      if (prefRows?.length) {
+        await snPatch(`/api/now/table/sys_user_preference/${prefRows[0].sys_id}`, {
+          value: args.sys_id,
+        }, env);
+      } else {
+        await snPost("/api/now/table/sys_user_preference", {
+          name:  "sys_update_set",
+          value: args.sys_id,
+          user:  userSysId,
+        }, env);
+      }
+
       return { message: "Update Set definido como atual", sys_id: args.sys_id };
     }
 
