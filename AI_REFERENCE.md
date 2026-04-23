@@ -1,4 +1,4 @@
-# Guia de Ferramentas — ServiceNow MCP Server (v7.1.0)
+# Guia de Ferramentas — ServiceNow MCP Server (v7.2.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
@@ -100,14 +100,10 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 - `sn_get_node_log` — logs de nó específico do cluster. **Requer role `admin`**
 
 ### Attachments
-- `sn_upload_attachment` — upload Base64
-- `sn_list_attachments` — lista anexos de um registro
-- `sn_download_attachment` — download em Base64
+- `sn_manage_attachment` — `action=upload` (Base64), `action=list` (lista por registro), `action=download` (retorna Base64)
 
 ### System Properties
-- `sn_get_sys_property` — busca por nome
-- `sn_set_sys_property` — upsert com suporte a mascaramento de senhas
-- `sn_list_sys_properties` — lista por prefixo
+- `sn_manage_sys_property` — `action=get` (por nome), `action=set` (upsert, suporte a private=true), `action=list` (por prefixo)
 
 ### Utilitários
 - `sn_health_check` — diagnóstico de conectividade

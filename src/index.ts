@@ -45,7 +45,7 @@ import { governanceTools,   handleGovernanceTool   } from "./tools/governance.js
 // ─────────────────────────────────────────────
 //  Versão — fonte única de verdade
 // ─────────────────────────────────────────────
-const VERSION = "7.1.0";
+const VERSION = "7.2.0";
 
 // ─────────────────────────────────────────────
 //  Todas as ferramentas registradas
@@ -171,13 +171,6 @@ const MCP_PROMPTS = [
     ],
   },
   {
-    name: "onboarding_app",
-    description: "Scaffold completo de uma aplicação de onboarding no ServiceNow: tabelas, scripts, REST API, catalog items.",
-    arguments: [
-      { name: "app_name", description: "Nome da aplicação (ex: Smart Onboarding AI)", required: true },
-    ],
-  },
-  {
     name: "safe_change_request",
     description: "Fluxo de governança seguro: gera plano de execução + análise de impacto e aguarda aprovação explícita antes de qualquer operação mutante.",
     arguments: [
@@ -251,34 +244,6 @@ Apresente um relatório completo com:
 - Regras de negócio ativas
 - Scripts client-side
 - Recomendações de segurança e performance`,
-        },
-      }];
-
-    case "onboarding_app":
-      return [{
-        role: "user",
-        content: {
-          type: "text",
-          text: `Crie uma aplicação completa de onboarding chamada '${args.app_name || "Smart Onboarding"}' no ServiceNow:
-
-1. **Tabelas** (use sn_manage_schema):
-   - u_onboarding_request (extends task): campos para department, start_date, employee_name, employee_email
-   - u_onboarding_task (extends task): campos para parent_request (reference), task_type (choice)
-
-2. **Script Includes** (use sn_upsert_metadata_script type=script_include):
-   - OnboardingValidator: validação de payloads
-   - OnboardingRuleEngine: criação automática de tarefas por departamento
-
-3. **Business Rules** (use sn_upsert_metadata_script type=business_rule):
-   - After insert em u_onboarding_request → chama OnboardingRuleEngine
-
-4. **Client Scripts** (use sn_upsert_metadata_script type=client_script):
-   - onChange de department → filtra campos relevantes
-
-5. **Catalog Item** (use sn_manage_catalog_item + sn_manage_catalog_variable):
-   - Formulário de solicitação com variáveis
-
-Siga a referência do Smart Onboarding AI documentada no GEMINI.md.`,
         },
       }];
 

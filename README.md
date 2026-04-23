@@ -1,13 +1,13 @@
 # ServiceNow MCP Server
 
-[![v7.1.0](https://img.shields.io/badge/version-7.1.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v7.2.0](https://img.shields.io/badge/version-7.2.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
 
-**v7.1.0** — 51 ferramentas ativas, 5 MCP Prompts. Nova ferramenta `sn_generate_execution_plan` com análise de impacto em tempo real. Novo prompt `safe_change_request` que guia o agente pelo fluxo Plan → Impact → Approval antes de qualquer operação mutante. Dashboard v3.0 com Graph Explorer (D3.js), Schema Search e Latency Heatmap.
+**v7.2.0** — 47 ferramentas ativas, 4 MCP Prompts. Consolidação de System Properties (3→1: `sn_manage_sys_property`) e Attachments (3→1: `sn_manage_attachment`). Fluxo de governança `sn_generate_execution_plan` + prompt `safe_change_request`. Dashboard v3.0 com Graph Explorer (D3.js), Schema Search e Latency Heatmap.
 
 ---
 
@@ -239,7 +239,7 @@ npm run add-tool <module> <sn_tool_name>
 
 ## Ferramentas Disponíveis
 
-51 ferramentas organizadas em 17 módulos.
+47 ferramentas organizadas em 17 módulos.
 
 ### Core CRUD
 
@@ -331,17 +331,13 @@ npm run add-tool <module> <sn_tool_name>
 
 | Ferramenta | Descrição |
 |---|---|
-| `sn_upload_attachment` | Faz upload de arquivo (Base64) como anexo |
-| `sn_list_attachments` | Lista todos os anexos de um registro |
-| `sn_download_attachment` | Baixa o conteúdo de um anexo em Base64 |
+| `sn_manage_attachment` | `action=upload`: envia arquivo (Base64). `action=list`: lista anexos de um registro. `action=download`: baixa conteúdo em Base64 |
 
 ### System Properties
 
 | Ferramenta | Descrição |
 |---|---|
-| `sn_get_sys_property` | Busca o valor de uma System Property pelo nome |
-| `sn_set_sys_property` | Cria ou atualiza uma System Property (upsert) |
-| `sn_list_sys_properties` | Lista System Properties filtrando por prefixo |
+| `sn_manage_sys_property` | `action=get`: busca por nome. `action=set`: cria ou atualiza (upsert, suporte a mascaramento). `action=list`: lista por prefixo |
 
 ### Utilitários
 
@@ -356,14 +352,13 @@ npm run add-tool <module> <sn_tool_name>
 
 ## MCP Prompts
 
-O servidor expõe 5 prompts predefinidos que guiam agentes de IA em workflows comuns:
+O servidor expõe 4 prompts predefinidos que guiam agentes de IA em workflows comuns:
 
 | Prompt | Descrição |
 |---|---|
 | `create_business_rule` | Guia passo-a-passo para criar uma Business Rule |
 | `debug_incident` | Workflow para investigar e diagnosticar um incident |
 | `analyze_table` | Análise completa: schema, dependencies, ACLs, scripts |
-| `onboarding_app` | Scaffold de uma aplicação de onboarding completa |
 | `safe_change_request` | **Governança de Mudanças**: gera plano de execução + análise de impacto e aguarda aprovação antes de qualquer operação mutante |
 
 ## Governança de Mudanças — Fluxo Plan → Impact → Approval
@@ -407,6 +402,7 @@ O retorno inclui `report_markdown` com plano completo, `requires_approval` (bool
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **v7.2.0** | 2026-04-23 | Consolidação de ferramentas: 51→47. System Properties (3→1: `sn_manage_sys_property`), Attachments (3→1: `sn_manage_attachment`). Remoção do prompt `onboarding_app`. 47 ferramentas, 4 prompts. |
 | **v7.1.0** | 2026-04-23 | Governança de Mudanças: `sn_generate_execution_plan` (análise de impacto em tempo real — BRs, Client Scripts, ACLs, bulk count). Prompt `safe_change_request` (fluxo Plan→Impact→Approval). 51 ferramentas, 5 prompts. 14 testes unitários para o planner. |
 | **v7.0.0** | 2026-04-23 | Dashboard v3.0 (Graph Explorer D3.js, Schema Search, Latency Heatmap, 6 abas). JIT Harvester (auto-sync de tabelas desconhecidas em background). Schema-Aware Validation (warnings de campos inválidos em CRUD). Linter expandido para 15 checks (`hardcoded_urls`, `hardcoded_secrets`, `missing_description`). Governance sub-modularizado (`src/tools/governance/`). Tool Scaffolder CLI (`npm run add-tool`). |
 | **v6.0.0** | 2026-04-17 | 50 ferramentas. Dashboard v2.0 (5 abas, SSE live activity, linter UI). Novos módulos: `sn_stream_syslog`, `sn_get_node_log` (admin-only), `sn_check_update_set` (12 checks). Cache persistente em JSON. Activity log JSONL (IPC MCP→Dashboard). Deep Discovery em `sn_analyze_impact`. Harvester default 50 tabelas. |

@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v7.1.0)
+# GEMINI.md — Contexto do Projeto para IA (v7.2.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,7 +7,7 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `7.1.0`
+- **Versão Atual**: `7.2.0`
 - **Descrição**: Servidor MCP que expõe 50 ferramentas e 4 prompts para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API) — 100% TypeScript com `tsx`.
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
@@ -97,7 +97,7 @@ servicenow-mcp/
 | Dashboard | Express + Vanilla HTML/JS (sem framework) |
 | MCP Transport | Stdio |
 | IPC MCP→Dashboard | JSONL append-only (`.sn-activity.jsonl`) com byte-offset polling |
-| Versão fonte única | `const VERSION = "7.1.0"` em `src/index.ts` e `"version"` em `package.json` |
+| Versão fonte única | `const VERSION = "7.2.0"` em `src/index.ts` e `"version"` em `package.json` |
 
 ---
 

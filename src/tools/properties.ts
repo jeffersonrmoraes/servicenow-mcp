@@ -1,4 +1,5 @@
 import { snGet, snPost, snPatch } from "../lib/client.js";
+import { ServiceNowEnv } from "../types.js";
 
 // ─────────────────────────────────────────────
 //  TOOLS — System Properties
@@ -6,146 +7,87 @@ import { snGet, snPost, snPatch } from "../lib/client.js";
 
 export const propertyTools = [
   {
-    name: "sn_get_sys_property",
-    description: "Busca o valor de uma System Property (sys_properties) pelo nome.",
+    name: "sn_manage_sys_property",
+    description:
+      "Gerencia System Properties (sys_properties). " +
+      "action=get: busca pelo nome exato. " +
+      "action=set: cria ou atualiza (upsert) com suporte a mascaramento (private=true). " +
+      "action=list: lista por prefixo de nome.",
     inputSchema: {
       type: "object",
       properties: {
-        env:  { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        name: { type: "string", description: "Nome da property (ex: glide.email.smtp.host)" },
+        env:         { type: "string",  description: "Prefixo do ambiente (opcional, ex: DEV)" },
+        action:      { type: "string",  enum: ["get", "set", "list"], description: "Operação a executar" },
+        name:        { type: "string",  description: "Nome da property — obrigatório para get/set" },
+        value:       { type: "string",  description: "Valor — obrigatório para set" },
+        description: { type: "string",  description: "Descrição (usada ao criar com set)" },
+        type:        { type: "string",  description: "Tipo: string, boolean, integer, choice (ao criar)" },
+        private:     { type: "boolean", description: "Se true, valor mascarado na UI (senhas/tokens)" },
+        prefix:      { type: "string",  description: "Prefixo de nome para filtrar — usado em list" },
+        limit:       { type: "number",  description: "Máximo de resultados para list (default: 20)" },
       },
-      required: ["name"],
+      required: ["action"],
     },
   },
-  {
-    name: "sn_set_sys_property",
-    description: "Cria ou atualiza uma System Property (upsert). Se a property existir, atualiza o valor. Se não existir, cria.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        env:         { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        name:        { type: "string", description: "Nome da property (ex: glide.email.smtp.host)" },
-        value:       { type: "string", description: "Valor da property" },
-        description: { type: "string", description: "Descrição da property (usado ao criar)" },
-        type:        { type: "string", description: "Tipo: string, boolean, integer, choice (usado ao criar)" },
-        private:     { type: "boolean", description: "Se true, o valor é mascarado na UI (usado para senhas/tokens)" },
-      },
-      required: ["name", "value"],
-    },
-  },
-  {
-    name: "sn_list_sys_properties",
-    description: "Lista System Properties filtrando por prefixo de nome ou categoria.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        env:    { type: "string", description: "Prefixo do ambiente (opcional, ex: DEV)" },
-        prefix: { type: "string", description: "Prefixo de nome para filtrar (ex: glide.email)" },
-        limit:  { type: "number", description: "Máximo de resultados (default: 20)" },
-      },
-    },
-  },
-  // sn_delete_sys_property: DESABILITADO por política de segurança
 ];
 
 // ─────────────────────────────────────────────
 //  HANDLER
 // ─────────────────────────────────────────────
 
-import { ServiceNowEnv } from "../types.js";
-
 export async function handlePropertyTool(name: string, args: any) {
-  const env = args.env || null;
+  const env: ServiceNowEnv = args.env || null;
 
-  // ── Get ──────────────────────────────────────
-  if (name === "sn_get_sys_property") {
-    const { result } = await snGet(
-      "/api/now/table/sys_properties",
-      {
+  if (name !== "sn_manage_sys_property") return null;
+
+  switch (args.action) {
+    case "get": {
+      if (!args.name) throw new Error("Parâmetro 'name' obrigatório para action=get.");
+      const { result } = await snGet("/api/now/table/sys_properties", {
         sysparm_query:  `name=${args.name}`,
         sysparm_fields: "sys_id,name,value,description,type,private",
         sysparm_limit:  "1",
-      },
-      env
-    );
-
-    if (!result || result.length === 0) {
-      return { found: false, name: args.name };
+      }, env);
+      if (!result?.length) return { found: false, name: args.name };
+      const p = result[0];
+      return { found: true, sys_id: p.sys_id, name: p.name, value: p.value, description: p.description, type: p.type, private: p.private };
     }
 
-    return {
-      found:       true,
-      sys_id:      result[0].sys_id,
-      name:        result[0].name,
-      value:       result[0].value,
-      description: result[0].description,
-      type:        result[0].type,
-      private:     result[0].private,
-    };
-  }
-
-  // ── Set (Upsert) ─────────────────────────────
-  if (name === "sn_set_sys_property") {
-    const { name: propName, value, description = "", type = "string", private: isPrivate = false } = args;
-
-    // Verifica se já existe
-    const { result: existing } = await snGet(
-      "/api/now/table/sys_properties",
-      {
-        sysparm_query:  `name=${propName}`,
+    case "set": {
+      if (!args.name)  throw new Error("Parâmetro 'name' obrigatório para action=set.");
+      if (args.value === undefined) throw new Error("Parâmetro 'value' obrigatório para action=set.");
+      const { result: existing } = await snGet("/api/now/table/sys_properties", {
+        sysparm_query:  `name=${args.name}`,
         sysparm_fields: "sys_id,name,value",
         sysparm_limit:  "1",
-      },
-      env
-    );
-
-    if (existing && existing.length > 0) {
-      // Atualiza via PATCH
-      const sysId = existing[0].sys_id;
-      const { result: updated } = await snPatch(
-        `/api/now/table/sys_properties/${sysId}`,
-        { value },
-        env
-      );
-      return { action: "updated", sys_id: updated.sys_id, name: updated.name, value: updated.value };
-    } else {
-      // Cria via POST
-      const { result: created } = await snPost(
-        "/api/now/table/sys_properties",
-        { name: propName, value, description, type, private: isPrivate },
-        env
-      );
-      return { action: "created", sys_id: created.sys_id, name: created.name, value: created.value };
+      }, env);
+      if (existing?.length) {
+        const { result: updated } = await snPatch(`/api/now/table/sys_properties/${existing[0].sys_id}`, { value: args.value }, env);
+        return { action: "updated", sys_id: updated.sys_id, name: updated.name, value: updated.value };
+      } else {
+        const { result: created } = await snPost("/api/now/table/sys_properties", {
+          name:        args.name,
+          value:       args.value,
+          description: args.description || "",
+          type:        args.type || "string",
+          private:     args.private || false,
+        }, env);
+        return { action: "created", sys_id: created.sys_id, name: created.name, value: created.value };
+      }
     }
-  }
 
-  // ── List ─────────────────────────────────────
-  if (name === "sn_list_sys_properties") {
-    const prefix = args.prefix || "";
-    const limit  = args.limit  || 20;
-
-    const query = prefix
-      ? `nameLIKE${prefix}`
-      : "active=true";
-
-    const { result } = await snGet(
-      "/api/now/table/sys_properties",
-      {
-        sysparm_query:  query,
-        sysparm_fields: "sys_id,name,value,description,type,private",
-        sysparm_limit:  String(limit),
+    case "list": {
+      const query = args.prefix ? `nameLIKE${args.prefix}` : "active=true";
+      const { result } = await snGet("/api/now/table/sys_properties", {
+        sysparm_query:   query,
+        sysparm_fields:  "sys_id,name,value,description,type,private",
+        sysparm_limit:   String(args.limit || 20),
         sysparm_orderby: "name",
-      },
-      env
-    );
+      }, env);
+      return result;
+    }
 
-    return result;
+    default:
+      throw new Error(`action inválida: '${args.action}'. Use: get, set, list.`);
   }
-
-  // ── Delete (DESABILITADO) ─────────────────────
-  if (name === "sn_delete_sys_property") {
-    throw new Error("Operação de delete desabilitada por política de segurança.");
-  }
-
-  return null;
 }
