@@ -1,13 +1,13 @@
 # ServiceNow MCP Server
 
-[![v6.0.0](https://img.shields.io/badge/version-6.0.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
+[![v7.0.0](https://img.shields.io/badge/version-7.0.0-blue.svg)](https://github.com/jeffersonrmoraes/servicenow-mcp/releases)
 [![ServiceNow](https://img.shields.io/badge/ServiceNow-Xanadu-green.svg)](https://www.servicenow.com)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 O **ServiceNow MCP Server** é um conector de alta performance que permite que agentes de IA (**Claude**, **GitHub Copilot**, **Antigravity**) desenvolvam e gerenciem instâncias do ServiceNow diretamente via APIs nativas.
 
-**v6.0.0** — 50 ferramentas ativas, 4 MCP Prompts, Dashboard v2.0 com SSE live activity, linter de Update Sets com 12 checks de boas práticas, logs de sistema, cache persistente, activity log JSONL e deep discovery de impacto.
+**v7.0.0** — 50 ferramentas ativas, 4 MCP Prompts, Dashboard v3.0 com Graph Explorer (D3.js), Schema Search, Latency Heatmap e SSE live activity. JIT Harvester para auto-sync de tabelas desconhecidas. Schema-Aware Validation com warnings em operações CRUD. Linter de Update Sets com 15 checks. Tool Scaffolder CLI.
 
 ---
 
@@ -21,7 +21,7 @@ O **ServiceNow MCP Server** é um conector de alta performance que permite que a
   - [Claude Code (CLI)](#claude-code-cli)
   - [VS Code + GitHub Copilot](#vs-code--github-copilot)
   - [Antigravity (Google Agentspace)](#antigravity-google-agentspace)
-- [Dashboard v2.0](#dashboard-v20)
+- [Dashboard v3.0](#dashboard-v30)
 - [Incremental Harvester](#incremental-harvester)
 - [Build & Testes](#build--testes)
 - [Ferramentas Disponíveis](#ferramentas-disponíveis)
@@ -151,7 +151,7 @@ Configure o servidor como `stdio` apontando para o arquivo principal.
 
 ---
 
-## Dashboard v2.0
+## Dashboard v3.0
 
 O Dashboard é um painel web local que roda em paralelo ao servidor MCP, sem interferir na latência das ferramentas.
 
@@ -165,16 +165,17 @@ npm run dashboard
 | Aba | O que faz |
 |---|---|
 | **ENVIRONMENTS** | Gerencia instâncias (.env), health check paralelo por ambiente, editor de config raw, OAuth 2.0 flow |
-| **TOOLS** | Explorer com busca full-text e filtros por módulo, visualização de schema JSON |
+| **TOOLS** | Explorer com busca full-text e filtros por módulo, visualização de schema JSON + **Schema Search** integrada |
 | **ACTIVITY** | Live feed via SSE (Server-Sent Events) com reconexão automática, filtro por tool, auto-scroll |
-| **STATS** | Métricas de servidor, cache, knowledge base e activity log com auto-refresh a cada 30s |
-| **GOVERNANCE** | Linter de Update Sets com 12 checks de boas práticas — selecionáveis individualmente |
+| **STATS** | Métricas de servidor, cache, knowledge base e activity log com auto-refresh a cada 30s + **Latency Heatmap** |
+| **GOVERNANCE** | Linter de Update Sets com 15 checks de boas práticas — selecionáveis individualmente |
+| **GRAPH** | **Graph Explorer** — visualização D3.js force-directed das relações entre tabelas (zoom, drag, sidebar de detalhes) |
 
-### Linter de Update Sets (12 checks)
+### Linter de Update Sets (15 checks)
 
 | Check | Severidade | Detecta |
 |---|---|---|
-| `try_catch` | warning | Scripts sem try/catch usando GlideRecord |
+| `try_catch` | warning | Scripts com GlideRecord sem bloco try/catch |
 | `comments` | info | Scripts longos sem comentários |
 | `hardcoded_sysids` | error | sys_ids de 32 chars hardcoded no código |
 | `missing_deps` | warning/error | Script Includes referenciadas mas ausentes/inativas |
@@ -183,9 +184,12 @@ npm run dashboard
 | `current_update` | **error** | `current.update()` em Business Rules — loop infinito |
 | `eval_usage` | **error** | `eval()` — injeção de código |
 | `client_server_api` | **error** | APIs server-only (`GlideRecord`, `gs.*`) em Client Scripts |
-| `no_limit_query` | warning | `GlideRecord.query()` sem `setLimit()` |
-| `rest_no_timeout` | warning | `RESTMessageV2` sem `setHttpTimeout()` |
+| `no_limit_query` | warning | `GlideRecord.query()` sem `setLimit()` — full-table scan |
+| `rest_no_timeout` | warning | `RESTMessageV2` sem `setHttpTimeout()` — thread starvation |
 | `encoded_query_concat` | warning | Concatenação em `addEncodedQuery()` — query injection |
+| `hardcoded_urls` | warning | URLs http/https hardcoded (exceto localhost) |
+| `hardcoded_secrets` | **error** | Credenciais hardcoded: password, api_key, token, secret, client_secret |
+| `missing_description` | info | Script Includes e Business Rules sem campo `description` preenchido |
 
 ---
 
@@ -225,13 +229,17 @@ npm run dev
 
 # Dashboard (http://localhost:3000)
 npm run dashboard
+
+# Tool Scaffolder — gera boilerplate de novo módulo
+npm run add-tool <module> <sn_tool_name>
+# Exemplo: npm run add-tool reporting sn_export_dashboard
 ```
 
 ---
 
 ## Ferramentas Disponíveis
 
-50 ferramentas organizadas em 15 módulos.
+50 ferramentas organizadas em 17 módulos.
 
 ### Core CRUD
 
@@ -309,7 +317,7 @@ npm run dashboard
 | `sn_set_current_update_set` | Define o Update Set atual |
 | `sn_list_update_sets` | Lista Update Sets disponíveis |
 | `sn_complete_update_set` | Marca um Update Set como completo |
-| `sn_check_update_set` | Linter de qualidade com 12 checks de boas práticas ServiceNow |
+| `sn_check_update_set` | Linter de qualidade com 15 checks de boas práticas ServiceNow |
 
 ### Logs & Observabilidade
 
@@ -373,6 +381,7 @@ O servidor v6.0 expõe 4 prompts predefinidos que guiam agentes de IA em workflo
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **v7.0.0** | 2026-04-23 | Dashboard v3.0 (Graph Explorer D3.js, Schema Search, Latency Heatmap, 6 abas). JIT Harvester (auto-sync de tabelas desconhecidas em background). Schema-Aware Validation (warnings de campos inválidos em CRUD). Linter expandido para 15 checks (`hardcoded_urls`, `hardcoded_secrets`, `missing_description`). Governance sub-modularizado (`src/tools/governance/`). Tool Scaffolder CLI (`npm run add-tool`). |
 | **v6.0.0** | 2026-04-17 | 50 ferramentas. Dashboard v2.0 (5 abas, SSE live activity, linter UI). Novos módulos: `sn_stream_syslog`, `sn_get_node_log` (admin-only), `sn_check_update_set` (12 checks). Cache persistente em JSON. Activity log JSONL (IPC MCP→Dashboard). Deep Discovery em `sn_analyze_impact`. Harvester default 50 tabelas. |
 | **v5.0.0** | 2026-04-17 | 46 ferramentas. Arquitetura split (15 módulos). LRU cache com eviction. Retry com exponential backoff. MCP Prompts (4). Novos tools: `sn_clone_record`, `sn_diff_records`, `sn_search_global`. Script sanitization. OAuth memory-only. Delete completamente removido. Testes migrados para TypeScript. Build step com `tsc`. |
 | **v4.2.0** | 2026-04-13 | 44 ferramentas ativas. Novos módulos: `sn_query_all`, `sn_list_envs`, `sn_manage_ui_page`, `sn_activate_flow`, `sn_list_flow_executions`, `sn_create_subflow`, `sn_create_flow_action`, `sn_set_current_update_set`, `sn_list_update_sets`, `sn_complete_update_set`, `sn_export_records`, `sn_manage_email_template`. |

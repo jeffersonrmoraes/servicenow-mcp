@@ -1,4 +1,4 @@
-# GEMINI.md — Contexto do Projeto para IA (v6.0.0)
+# GEMINI.md — Contexto do Projeto para IA (v7.0.0)
 
 Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP Server** para qualquer agente de IA que trabalhe nesta base de código. Leia este arquivo antes de qualquer intervenção.
 
@@ -7,25 +7,25 @@ Este arquivo fornece contexto estruturado sobre o repositório **ServiceNow MCP 
 ## Visão Geral
 
 - **Projeto**: ServiceNow MCP Server
-- **Versão Atual**: `6.0.0`
+- **Versão Atual**: `7.0.0`
 - **Descrição**: Servidor MCP que expõe 50 ferramentas e 4 prompts para desenvolver e gerenciar instâncias ServiceNow via agentes de IA (Claude, GitHub Copilot, Antigravity/Google Agentspace).
 - **Estrutura Core**: MCP SDK (Stdio) + Express (Dashboard API) — 100% TypeScript com `tsx`.
 - **Repositório**: https://github.com/jeffersonrmoraes/servicenow-mcp
 
 ---
 
-## Estrutura de Arquivos (v6.0.0)
+## Estrutura de Arquivos (v7.0.0)
 
 ```
 servicenow-mcp/
 ├── src/
-│   ├── index.ts               ← Orquestrador MCP Principal (roteamento O(1) via Map + Prompts + activity logging)
+│   ├── index.ts               ← Orquestrador MCP Principal (roteamento O(1) via Map + Prompts + JIT trigger + activity logging)
 │   ├── types.ts               ← Interfaces TypeScript compartilhadas (ToolDefinition, MCPResource, etc.)
 │   ├── dashboard/
-│   │   ├── server.ts          ← API do Dashboard (Express) — SSE, health, stats, governance, OAuth
+│   │   ├── server.ts          ← API do Dashboard (Express) — SSE, health, stats, governance, knowledge, OAuth
 │   │   └── public/
-│   │       ├── index.html     ← SPA 5-abas (Environments, Tools, Activity, Stats, Governance)
-│   │       ├── app.js         ← Lógica do frontend (lazy tab init, SSE reconnect, live activity)
+│   │       ├── index.html     ← SPA 6-abas (Environments, Tools, Activity, Stats, Governance, Graph)
+│   │       ├── app.js         ← Lógica do frontend (lazy tab init, SSE reconnect, D3.js Graph Explorer, Schema Search, Latency Heatmap)
 │   │       └── style.css      ← Dark Tech theme (JetBrains Mono, ciano/preto)
 │   ├── lib/
 │   │   ├── client.ts          ← Cliente REST (retry + backoff, OAuth refresh memory-only)
@@ -34,9 +34,11 @@ servicenow-mcp/
 │   │   ├── ratelimit.ts       ← Sliding window 10 req/s read, 5 req/s write, por ambiente
 │   │   ├── validate.ts        ← Validação de tableName, sys_id, limit, payload, query
 │   │   ├── helpers.ts         ← Utilitários compartilhados (upsert, findByField, encodeQueryParam)
-│   │   └── logger.ts          ← Logger estruturado JSON (stderr)
+│   │   ├── logger.ts          ← Logger estruturado JSON (stderr)
+│   │   ├── jit-harvester.ts   ← JIT Harvester (auto-sync background com in-flight guard + negative cache)
+│   │   └── schema-validator.ts ← Schema-Aware Validation (parse de knowledge/ MD, cache Map, warns non-blocking)
 │   └── tools/
-│       ├── crud.ts            ← Core CRUD + clone + diff + search_global + list_envs
+│       ├── crud.ts            ← Core CRUD + clone + diff + search_global + list_envs + schema warnings
 │       ├── metadata.ts        ← Scripts de desenvolvimento + Schema + sanitização
 │       ├── context.ts         ← Gerador de contexto AI (sn_generate_ai_context)
 │       ├── envs.ts            ← Listagem de ambientes configurados
@@ -52,7 +54,12 @@ servicenow-mcp/
 │       ├── relationships.ts   ← Mapeamento de dependências + Deep Discovery em 6 tabelas de scripts
 │       ├── extras.ts          ← Utilitários (health_check, choice, export, email_template)
 │       ├── logs.ts            ← Logs de sistema (sn_stream_syslog, sn_get_node_log) — admin-only
-│       └── governance.ts      ← Linter de Update Sets (sn_check_update_set, 12 checks)
+│       └── governance.ts      ← Barrel re-export (→ governance/handler.ts + governance/checks.ts)
+│           governance/
+│           ├── checks.ts      ← 15 funções de check + LintIssue interface + ALL_CHECKS array
+│           └── handler.ts     ← governanceTools array + handleGovernanceTool function
+├── scripts/
+│   └── add-tool.ts            ← Tool Scaffolder CLI (npm run add-tool <module> <sn_tool_name>)
 ├── knowledge/                 ← Metadados locais da instância (gerado pelo Harvester)
 │   ├── core/                  ← Tabelas nativas (incident, change, task...)
 │   ├── custom/                ← Tabelas u_, x_
@@ -72,7 +79,7 @@ servicenow-mcp/
 ├── AI_REFERENCE.md            ← Guia de uso para IAs consumidoras
 ├── GEMINI.md                  ← Este arquivo (contexto para desenvolvedores)
 ├── README.md                  ← Documentação pública
-├── package.json               ← v6.0.0 (scripts: start, build, dashboard, dev, test, type-check)
+├── package.json               ← v7.0.0 (scripts: start, build, dashboard, dev, test, type-check, add-tool)
 └── tsconfig.json              ← Com declaration, sourceMap, declarationMap
 ```
 
@@ -88,7 +95,7 @@ servicenow-mcp/
 | Dashboard | Express + Vanilla HTML/JS (sem framework) |
 | MCP Transport | Stdio |
 | IPC MCP→Dashboard | JSONL append-only (`.sn-activity.jsonl`) com byte-offset polling |
-| Versão fonte única | `const VERSION = "6.0.0"` em `src/index.ts` e `"version"` em `package.json` |
+| Versão fonte única | `const VERSION = "7.0.0"` em `src/index.ts` e `"version"` em `package.json` |
 
 ---
 
@@ -123,6 +130,13 @@ export async function handleMyTool(name: string, args: any) {
 ```
 
 Após criar o módulo, registre-o em `src/index.ts` nos arrays `ALL_TOOLS` e `toolModules`.
+
+**Tool Scaffolder**: Use `npm run add-tool <module> <sn_tool_name>` para gerar o boilerplate automaticamente:
+
+```bash
+npm run add-tool reporting sn_export_dashboard
+# Gera src/tools/reporting.ts e imprime as instruções de registro
+```
 
 ---
 
@@ -202,7 +216,7 @@ O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_inciden
 
 ---
 
-## Dashboard v2.0 — Endpoints da API
+## Dashboard v3.0 — Endpoints da API
 
 | Endpoint | Método | Descrição |
 |---|---|---|
@@ -212,8 +226,11 @@ O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_inciden
 | `GET /api/stats` | GET | Métricas de servidor, cache, knowledge e activity |
 | `GET /api/activity` | GET | Histórico de activity log (últimas N entradas) |
 | `GET /api/activity/stream` | SSE | Stream live de novas entradas via byte-offset polling |
+| `GET /api/activity/heatmap` | GET | Latência agregada por ferramenta (avg/min/max ms, error_rate) — últimas 500 entradas |
 | `GET /api/governance/update-sets` | GET | Lista Update Sets do ambiente |
-| `POST /api/governance/lint` | POST | Executa linter em um Update Set |
+| `POST /api/governance/lint` | POST | Executa linter em um Update Set (15 checks) |
+| `GET /api/knowledge/search?q=` | GET | Busca full-text em knowledge/ MD — retorna ranked results |
+| `GET /api/knowledge/graph` | GET | Grafo de relações entre tabelas — nodes + edges para D3.js |
 | `GET /api/env` | GET | Lê o arquivo `.env` raw (senhas mascaradas) |
 | `POST /api/env` | POST | Salva o `.env` e aplica em `process.env` |
 
@@ -235,6 +252,9 @@ O servidor expõe 4 prompts predefinidos: `create_business_rule`, `debug_inciden
 12. **No Delete**: Nunca adicione operações DELETE. Política de segurança.
 13. **Dashboard Aesthetics**: O painel segue a temática "Dark Tech" (preto/ciano, JetBrains Mono).
 14. **TDZ no Frontend**: Em `app.js`, chame funções que dependem de `const` declaradas abaixo apenas no final do `DOMContentLoaded` handler.
+15. **JIT Harvester**: Fire-and-forget em `src/index.ts` — `triggerJITSync(table, env)` antes do try/catch de execução. Nunca bloqueie a chamada esperando o sync.
+16. **Schema Validator**: `validateFields` retorna array vazio quando a tabela não está em `knowledge/` — nunca lança exceção. Adicione warnings ao resultado sem bloquear a operação.
+17. **Governance barrel**: Importe sempre de `"./tools/governance.js"` — o barrel re-exporta de `governance/handler.js` e `governance/checks.js`. Não importe diretamente dos sub-módulos em `src/index.ts`.
 
 ---
 

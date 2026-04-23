@@ -1,4 +1,4 @@
-# Guia de Ferramentas — ServiceNow MCP Server (v6.0.0)
+# Guia de Ferramentas — ServiceNow MCP Server (v7.0.0)
 
 Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
@@ -28,8 +28,10 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 4. **Exports**: Use `sn_export_records` para extrair dados em JSON ou CSV para migração ou análise.
 5. **Deploy seguro**: Crie um Update Set com `sn_create_update_set`, defina-o como atual com `sn_set_current_update_set`, faça as alterações, e complete com `sn_complete_update_set`.
 6. **Análise de impacto**: Antes de alterar o schema de uma tabela, use `sn_analyze_impact` com `deep_discovery: true` para ver todas as referências em scripts.
-7. **Qualidade de código**: Antes de promover um Update Set, execute `sn_check_update_set` para detectar problemas de boas práticas — N+1 queries, eval(), current.update(), etc.
+7. **Qualidade de código**: Antes de promover um Update Set, execute `sn_check_update_set` para detectar problemas de boas práticas — N+1 queries, eval(), current.update(), URLs e secrets hardcoded, etc.
 8. **Logs de sistema**: Use `sn_stream_syslog` para investigar erros em produção (requer role `admin`). Suporta filtros por nível (`debug`/`info`/`warn`/`error`) e intervalos relativos (`-1h`, `-30m`).
+9. **JIT Harvester**: O servidor sincroniza automaticamente tabelas desconhecidas em background quando detecta um `table` não presente em `knowledge/`. Não é necessária ação manual — o contexto fica disponível nas próximas chamadas.
+10. **Schema Warnings**: `sn_query_records`, `sn_create_record` e `sn_update_record` retornam `schema_warnings` ou `_schema_warnings` quando campos não reconhecidos são usados. Esses avisos são não-bloqueantes — a operação ainda é executada.
 
 ---
 
@@ -113,7 +115,7 @@ Este manual é destinado a Agentes de IA que consomem este servidor MCP.
 
 ## Linter de Update Sets — Checks Disponíveis
 
-Use `sn_check_update_set` com o parâmetro `checks` para selecionar quais análises executar. Sem o parâmetro, todos os 12 checks rodam por padrão.
+Use `sn_check_update_set` com o parâmetro `checks` para selecionar quais análises executar. Sem o parâmetro, todos os 15 checks rodam por padrão.
 
 | Check | Severidade | Detecta |
 |---|---|---|
@@ -129,6 +131,9 @@ Use `sn_check_update_set` com o parâmetro `checks` para selecionar quais análi
 | `no_limit_query` | warning | `GlideRecord.query()` sem `setLimit()` — full-table scan |
 | `rest_no_timeout` | warning | `RESTMessageV2` sem `setHttpTimeout()` — thread starvation |
 | `encoded_query_concat` | warning | Concatenação em `addEncodedQuery()` — query injection |
+| `hardcoded_urls` | warning | URLs http/https hardcoded no script (exceto localhost) |
+| `hardcoded_secrets` | error | Credenciais hardcoded: `password`, `api_key`, `token`, `secret`, `client_secret` |
+| `missing_description` | info | Script Includes e Business Rules sem campo `description` preenchido |
 
 ---
 
@@ -213,7 +218,7 @@ GET /cache.do
 ```
 Aguarda redirect 302. Sem isso, o form renderiza o layout antigo.
 
-### 9. Anti-patterns detectados pelo linter (v6.0)
+### 9. Anti-patterns detectados pelo linter (v7.0)
 
 - **GlideRecord em loop**: Nunca instancie `new GlideRecord` dentro de `while(gr.next())`. Pré-carregue os dados antes do loop.
 - **`current.update()` em Business Rules**: Causa loop infinito. Use `setWorkflow(false)` ou reestruture a lógica.
@@ -221,3 +226,6 @@ Aguarda redirect 302. Sem isso, o form renderiza o layout antigo.
 - **APIs server-only em Client Scripts**: `GlideRecord`, `gs.getProperty()`, `gs.log()` não existem no browser. Use `GlideAjax`.
 - **`GlideRecord.query()` sem `setLimit()`**: Pode retornar a tabela inteira. Sempre use `setLimit(n)`.
 - **`RESTMessageV2` sem timeout**: Chamadas externas bloqueiam threads. Sempre use `setHttpTimeout(ms)`.
+- **URLs hardcoded em scripts**: Credenciais ou endpoints de integração hardcoded no script dificultam promoção entre ambientes. Use System Properties.
+- **Secrets hardcoded**: Qualquer padrão `password =`, `api_key =`, `token =` etc. com valor literal é bloqueante. Use `gs.getProperty()` ou GlideCredentialStore.
+- **Script Include sem `description`**: Dificulta manutenção e documentação automática. Sempre preencha a descrição.
