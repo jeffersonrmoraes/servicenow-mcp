@@ -12,11 +12,112 @@ const MAX_RETRIES = parseInt(process.env.SN_MAX_RETRIES || "3", 10);
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 // ─────────────────────────────────────────────
+//  OAuth 2.0 — initial token fetch (v8.0)
+// ─────────────────────────────────────────────
+
+const _tokenExpiry   = new Map<string, number>();  // key → expires_at ms
+const _oauthFetchLock = new Map<string, boolean>(); // prevents concurrent fetches
+
+async function fetchOAuthToken(prefix: string, instance: string): Promise<void> {
+  const key         = prefix || "default";
+  const grantType   = (process.env[`${prefix}SN_GRANT_TYPE`] || process.env.SN_GRANT_TYPE || "password").toLowerCase();
+  const clientId    = process.env[`${prefix}SN_CLIENT_ID`]    || process.env.SN_CLIENT_ID;
+  const clientSecret= process.env[`${prefix}SN_CLIENT_SECRET`]|| process.env.SN_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      `OAuth configurado mas SN_CLIENT_ID / SN_CLIENT_SECRET ausentes para o ambiente '${key}'.`,
+    );
+  }
+
+  const params = new URLSearchParams({ grant_type: grantType, client_id: clientId, client_secret: clientSecret });
+
+  if (grantType === "password") {
+    const user = process.env[`${prefix}SN_USER`] || process.env.SN_USER;
+    const pass = process.env[`${prefix}SN_PASSWORD`] || process.env.SN_PASSWORD;
+    if (!user || !pass) {
+      throw new Error(
+        `OAuth grant_type=password requer SN_USER e SN_PASSWORD para o ambiente '${key}'.`,
+      );
+    }
+    params.set("username", user);
+    params.set("password", pass);
+  }
+
+  logger.info("Buscando OAuth access token...", { env: key, grant_type: grantType });
+
+  const res = await fetchWithTimeout(`${instance}/oauth_token.do`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body:    params.toString(),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`OAuth token (${grantType}) → HTTP ${res.status}: ${body}`);
+  }
+
+  const data: any = await res.json();
+  if (!data.access_token) {
+    throw new Error(`OAuth token (${grantType}) não retornou access_token para '${key}'.`);
+  }
+
+  const accessKey  = `${prefix}SN_OAUTH_ACCESS_TOKEN`;
+  const refreshKey = `${prefix}SN_OAUTH_REFRESH_TOKEN`;
+
+  process.env[accessKey] = data.access_token;
+  if (data.refresh_token) process.env[refreshKey] = data.refresh_token;
+
+  const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 1800;
+  _tokenExpiry.set(key, Date.now() + (expiresIn - 30) * 1000);
+
+  logger.info("OAuth access token obtido com sucesso (memory-only).", {
+    env: key,
+    expires_in: expiresIn,
+  });
+}
+
+async function ensureOAuthToken(env: ServiceNowEnv): Promise<void> {
+  const prefix = env ? `${env.toUpperCase()}_` : "";
+  const key    = prefix || "default";
+  const authMode = (process.env[`${prefix}SN_AUTH`] || process.env.SN_AUTH || "basic").toLowerCase();
+
+  if (authMode !== "oauth") return;
+
+  // Already have a valid token in memory
+  const token   = process.env[`${prefix}SN_OAUTH_ACCESS_TOKEN`] || process.env.SN_OAUTH_ACCESS_TOKEN;
+  const expiry  = _tokenExpiry.get(key);
+  if (token && expiry && Date.now() < expiry) return;
+
+  // Avoid concurrent fetches
+  if (_oauthFetchLock.get(key)) return;
+  _oauthFetchLock.set(key, true);
+
+  try {
+    let instance = process.env[`${prefix}SN_INSTANCE`] || process.env.SN_INSTANCE || "";
+    if (!instance.startsWith("http")) instance = `https://${instance}.service-now.com`;
+
+    // Try refresh first if we have a refresh token
+    const refreshToken = process.env[`${prefix}SN_OAUTH_REFRESH_TOKEN`] || process.env.SN_OAUTH_REFRESH_TOKEN;
+    if (refreshToken && token) {
+      const refreshed = await tryRefreshOAuth(env);
+      if (refreshed) return;
+    }
+
+    await fetchOAuthToken(prefix, instance);
+  } finally {
+    _oauthFetchLock.set(key, false);
+  }
+}
+
+// ─────────────────────────────────────────────
 //  Context Resolution
 // ─────────────────────────────────────────────
 
 export const getContext = (env: ServiceNowEnv): ServiceNowContext => {
-  const prefix = env ? `${env.toUpperCase()}_` : "";
+  const prefix   = env ? `${env.toUpperCase()}_` : "";
+  const authMode = (process.env[`${prefix}SN_AUTH`] || process.env.SN_AUTH || "basic").toLowerCase();
+
   let instance = process.env[`${prefix}SN_INSTANCE`] || process.env.SN_INSTANCE;
   const user       = process.env[`${prefix}SN_USER`]     || process.env.SN_USER;
   const pass       = process.env[`${prefix}SN_PASSWORD`] || process.env.SN_PASSWORD;
@@ -26,8 +127,16 @@ export const getContext = (env: ServiceNowEnv): ServiceNowContext => {
     throw new Error(`Instância (SN_INSTANCE) não configurada para o ambiente '${env || "default"}'`);
   }
 
-  if (!oauthToken && (!user || !pass)) {
-    throw new Error(`Autenticação incompleta para '${env || "default"}'. Configure USER/PASS ou OAUTH_ACCESS_TOKEN.`);
+  if (authMode === "oauth") {
+    if (!oauthToken) {
+      throw new Error(
+        `Token OAuth não disponível para '${env || "default"}'. Verifique SN_CLIENT_ID e SN_CLIENT_SECRET.`,
+      );
+    }
+  } else if (!user || !pass) {
+    throw new Error(
+      `Autenticação incompleta para '${env || "default"}'. Configure SN_USER e SN_PASSWORD (ou use SN_AUTH=oauth).`,
+    );
   }
 
   if (!instance.startsWith("http")) {
@@ -39,7 +148,7 @@ export const getContext = (env: ServiceNowEnv): ServiceNowContext => {
     "Accept":       "application/json",
   };
 
-  if (oauthToken) {
+  if (oauthToken && (authMode === "oauth" || !user || !pass)) {
     headers["Authorization"] = `Bearer ${oauthToken}`;
   } else {
     headers["Authorization"] = "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
@@ -237,6 +346,7 @@ export async function snGet(
   params: Record<string, string | number | undefined> = {},
   env: ServiceNowEnv = null,
 ): Promise<any> {
+  await ensureOAuthToken(env);
   await checkRateLimit(env, "GET");
   const ctx = getContext(env);
   const url = new URL(`${ctx.instance}${path}`);
@@ -272,6 +382,7 @@ export async function snGet(
 }
 
 export async function snPost(path: string, body: any, env: ServiceNowEnv = null): Promise<any> {
+  await ensureOAuthToken(env);
   await checkRateLimit(env, "POST");
   const ctx = getContext(env);
 
@@ -301,6 +412,7 @@ export async function snPost(path: string, body: any, env: ServiceNowEnv = null)
 }
 
 export async function snPatch(path: string, body: any, env: ServiceNowEnv = null): Promise<any> {
+  await ensureOAuthToken(env);
   await checkRateLimit(env, "PATCH");
   const ctx = getContext(env);
 
@@ -330,6 +442,7 @@ export async function snPatch(path: string, body: any, env: ServiceNowEnv = null
 }
 
 export async function snDelete(path: string, env: ServiceNowEnv = null): Promise<void> {
+  await ensureOAuthToken(env);
   await checkRateLimit(env, "DELETE");
   const ctx = getContext(env);
   const res = await fetchWithRetry(`${ctx.instance}${path}`, {
@@ -346,6 +459,7 @@ export async function snPostBinary(
   contentType: string,
   env: ServiceNowEnv = null,
 ): Promise<any> {
+  await ensureOAuthToken(env);
   await checkRateLimit(env, "POST");
   const ctx = getContext(env);
   const binaryHeaders: Record<string, string> = {
@@ -363,6 +477,7 @@ export async function snPostBinary(
 }
 
 export async function snGetBinary(path: string, env: ServiceNowEnv = null): Promise<string> {
+  await ensureOAuthToken(env);
   await checkRateLimit(env, "GET");
   const ctx = getContext(env);
   const res = await fetchWithRetry(`${ctx.instance}${path}`, { headers: ctx.headers }, "GET_BINARY", path);

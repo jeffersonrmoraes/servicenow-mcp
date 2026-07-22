@@ -52,21 +52,61 @@ npm install
 
 O servidor carrega automaticamente as variáveis do arquivo `.env` na raiz.
 
+### Basic Auth (padrão)
+
 ```env
-# Exemplo 1: Ambiente PDI
-PDI_SN_INSTANCE=dev12345
-PDI_SN_USER=admin
-PDI_SN_PASSWORD=sua_senha
-
-# Exemplo 2: Ambiente DEV
-DEV_SN_INSTANCE=dev99999
-DEV_SN_USER=admin
-DEV_SN_PASSWORD=outra_senha
-
 # Instância padrão (sem prefixo)
 SN_INSTANCE=dev88888
 SN_USER=admin
 SN_PASSWORD=senha_padrao
+```
+
+### OAuth 2.0 — Password Grant
+
+Recomendado para produção. Credenciais nunca ficam expostas em cada chamada HTTP.
+
+```env
+SN_INSTANCE=https://seu-dominio.service-now.com
+SN_AUTH=oauth
+SN_GRANT_TYPE=password
+SN_CLIENT_ID=seu-client-id
+SN_CLIENT_SECRET=seu-client-secret
+SN_USER=seu-usuario
+SN_PASSWORD=sua-senha
+```
+
+> Configure o OAuth Application no ServiceNow: **System OAuth → Application Registry → New → Create an OAuth API endpoint for external clients**
+
+### OAuth 2.0 — Client Credentials Grant
+
+Ideal para integração machine-to-machine sem usuário interativo.
+
+```env
+SN_INSTANCE=https://seu-dominio.service-now.com
+SN_AUTH=oauth
+SN_GRANT_TYPE=client_credentials
+SN_CLIENT_ID=seu-client-id
+SN_CLIENT_SECRET=seu-client-secret
+```
+
+O servidor gerencia o ciclo de vida do token automaticamente: obtém o token no primeiro request, renova via refresh token antes de expirar e busca novo token caso o refresh falhe. Tokens ficam apenas em memória — nunca são escritos no `.env`.
+
+### Múltiplos Ambientes
+
+```env
+# PDI com Basic Auth
+PDI_SN_INSTANCE=dev12345
+PDI_SN_USER=admin
+PDI_SN_PASSWORD=sua_senha
+
+# DEV com OAuth 2.0
+DEV_SN_INSTANCE=dev99999
+DEV_SN_AUTH=oauth
+DEV_SN_GRANT_TYPE=password
+DEV_SN_CLIENT_ID=client-id-dev
+DEV_SN_CLIENT_SECRET=client-secret-dev
+DEV_SN_USER=admin
+DEV_SN_PASSWORD=outra_senha
 
 # Cache persistente (opcional)
 SN_CACHE_PERSIST=true
@@ -77,8 +117,8 @@ SN_ACTIVITY_LOG_PATH=.sn-activity.jsonl
 ```
 
 Use o parâmetro `env` nas ferramentas para rotear entre ambientes:
-- `env: "PDI"` → usa `PDI_SN_INSTANCE`, `PDI_SN_USER`, etc.
-- `env: "DEV"` → usa `DEV_SN_INSTANCE`, `DEV_SN_USER`, etc.
+- `env: "PDI"` → usa `PDI_SN_INSTANCE`, `PDI_SN_AUTH`, etc.
+- `env: "DEV"` → usa `DEV_SN_INSTANCE`, `DEV_SN_AUTH`, etc.
 - `env: ""` (ou omitido) → usa as variáveis sem prefixo (`SN_INSTANCE`, etc.)
 
 ---
@@ -391,7 +431,7 @@ O retorno inclui `report_markdown` com plano completo, `requires_approval` (bool
 
 - **Operações de delete**: Completamente removidas por política de segurança. Use a interface do ServiceNow para operações destrutivas.
 - **Script sanitization**: `sn_execute_script` e `sn_upsert_metadata_script` bloqueiam operações perigosas (`deleteMultiple`, `Packages.java`, `Runtime`, etc.).
-- **OAuth tokens**: Armazenados apenas em memória durante a sessão. Nunca persistidos em `.env` via código.
+- **OAuth tokens**: Obtidos automaticamente via `password` ou `client_credentials` grant ao setar `SN_AUTH=oauth`. Armazenados apenas em memória, nunca escritos em disco. Renovados automaticamente antes de expirar.
 - **Retry**: Backoff exponencial automático para erros 429, 500, 502, 503, 504.
 - **LRU Cache**: Limite máximo de entradas para prevenir memory leaks. Persistência opcional em JSON.
 - **Admin guard**: `sn_stream_syslog` e `sn_get_node_log` verificam a role `admin` via API antes de executar.
@@ -402,6 +442,7 @@ O retorno inclui `report_markdown` com plano completo, `requires_approval` (bool
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **v8.0.0** | 2026-07-22 | OAuth 2.0 completo: `SN_AUTH=oauth` + `SN_GRANT_TYPE=password\|client_credentials`. Fetch automático de token no primeiro request, renovação proativa antes do vencimento, refresh em 401, suporte por ambiente (prefixo). |
 | **v7.2.0** | 2026-04-23 | Consolidação de ferramentas: 51→47. System Properties (3→1: `sn_manage_sys_property`), Attachments (3→1: `sn_manage_attachment`). Remoção do prompt `onboarding_app`. 47 ferramentas, 4 prompts. |
 | **v7.1.0** | 2026-04-23 | Governança de Mudanças: `sn_generate_execution_plan` (análise de impacto em tempo real — BRs, Client Scripts, ACLs, bulk count). Prompt `safe_change_request` (fluxo Plan→Impact→Approval). 51 ferramentas, 5 prompts. 14 testes unitários para o planner. |
 | **v7.0.0** | 2026-04-23 | Dashboard v3.0 (Graph Explorer D3.js, Schema Search, Latency Heatmap, 6 abas). JIT Harvester (auto-sync de tabelas desconhecidas em background). Schema-Aware Validation (warnings de campos inválidos em CRUD). Linter expandido para 15 checks (`hardcoded_urls`, `hardcoded_secrets`, `missing_description`). Governance sub-modularizado (`src/tools/governance/`). Tool Scaffolder CLI (`npm run add-tool`). |
