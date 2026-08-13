@@ -127,7 +127,7 @@ Use o parâmetro `env` nas ferramentas para rotear entre ambientes:
 
 ### Claude Desktop
 
-Abra seu `claude_desktop_config.json` e adicione a configuração exata baseada no seu diretório:
+Abra seu `claude_desktop_config.json` e adicione:
 
 ```json
 {
@@ -146,6 +146,8 @@ Abra seu `claude_desktop_config.json` e adicione a configuração exata baseada 
 }
 ```
 
+> 🔒 **Segurança**: as credenciais são carregadas automaticamente do `.env` na pasta do projeto via `workingDirectory`. **Nunca coloque `SN_USER`, `SN_PASSWORD` ou tokens no `claude_desktop_config.json`** — esse arquivo pode ser lido por outras extensões e não é criptografado.
+
 ### Claude Code (CLI)
 
 ```bash
@@ -159,11 +161,14 @@ Ou configure via `.mcp.json` na raiz do projeto:
   "mcpServers": {
     "servicenow": {
       "command": "npx",
-      "args": ["tsx", "/caminho/para/servicenow-mcp/src/index.ts"]
+      "args": ["tsx", "/caminho/para/servicenow-mcp/src/index.ts"],
+      "workingDirectory": "/caminho/para/servicenow-mcp"
     }
   }
 }
 ```
+
+> 🔒 O `workingDirectory` garante que o `.env` seja lido da pasta correta. Nunca adicione credenciais no `.mcp.json`.
 
 ### VS Code + GitHub Copilot
 
@@ -175,11 +180,14 @@ Em `.vscode/mcp.json`:
     "servicenow": {
       "type": "stdio",
       "command": "npx",
-      "args": ["tsx", "/caminho/para/servicenow-mcp/src/index.ts"]
+      "args": ["tsx", "/caminho/para/servicenow-mcp/src/index.ts"],
+      "workingDirectory": "/caminho/para/servicenow-mcp"
     }
   }
 }
 ```
+
+> 🔒 O `.vscode/mcp.json` pode ser commitado. Nunca inclua credenciais nele — use sempre o `.env` (que está no `.gitignore`).
 
 ### Antigravity (Google Agentspace)
 
@@ -429,6 +437,7 @@ O retorno inclui `report_markdown` com plano completo, `requires_approval` (bool
 
 ## Segurança
 
+- **Credenciais no `.env` apenas**: Nunca coloque `SN_USER`, `SN_PASSWORD`, `SN_CLIENT_SECRET` ou tokens em `claude_desktop_config.json`, `.mcp.json` ou `.vscode/mcp.json`. Esses arquivos não são criptografados. Use sempre `workingDirectory` apontando para a pasta do projeto — o servidor carrega o `.env` automaticamente.
 - **Operações de delete**: Completamente removidas por política de segurança. Use a interface do ServiceNow para operações destrutivas.
 - **Script sanitization**: `sn_execute_script` e `sn_upsert_metadata_script` bloqueiam operações perigosas (`deleteMultiple`, `Packages.java`, `Runtime`, etc.).
 - **OAuth tokens**: Obtidos automaticamente via `password` ou `client_credentials` grant ao setar `SN_AUTH=oauth`. Armazenados apenas em memória, nunca escritos em disco. Renovados automaticamente antes de expirar.
